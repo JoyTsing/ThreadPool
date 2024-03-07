@@ -16,4 +16,5 @@ add_executable(main ${all_src})
 
 target_compile_features(main PUBLIC cxx_std_20)
 target_include_directories(main PUBLIC ${PROJECT_SOURCE_DIR}/include/)
-target_link_libraries(main PUBLIC Backward::Backward)
+
+target_link_libraries(main PUBLIC Backward::Backward Backward::Interface Backward::Object)

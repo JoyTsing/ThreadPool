@@ -38,5 +38,6 @@ foreach(v ${all_tests})
 
   target_compile_features(${target_name} PUBLIC cxx_std_20)
   target_include_directories(${target_name} PUBLIC ${PROJECT_SOURCE_DIR}/include/)
-  target_link_libraries(${target_name} PUBLIC doctest_with_main nanobench Backward::Backward)
+  target_link_libraries(${target_name} PUBLIC doctest_with_main nanobench
+    Backward::Backward Backward::Object)
 endforeach()
