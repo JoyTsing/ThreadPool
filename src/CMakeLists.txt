@@ -11,8 +11,10 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(backward)
 
 # src
-file(GLOB_RECURSE all_src CONFIGURE_DEPENDS *.cpp)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+file(GLOB_RECURSE all_src CONFIGURE_DEPENDS *.cpp)
 add_executable(main ${all_src})
 
 target_compile_features(main PUBLIC cxx_std_20)
