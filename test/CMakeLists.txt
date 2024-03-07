@@ -25,9 +25,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(backward)
 
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
 file(GLOB_RECURSE all_tests *.cpp)
 file(GLOB_RECURSE all_src CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/src/*.cpp)
 list(REMOVE_ITEM all_src ${PROJECT_SOURCE_DIR}/src/main.cpp)
