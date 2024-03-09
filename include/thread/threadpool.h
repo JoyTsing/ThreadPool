@@ -64,14 +64,12 @@ class ThreadPool {
     // lock
     std::unique_lock<std::mutex> lock(mtx_);
     // submit
-    if (!notFull_.wait_for(lock, std::chrono::seconds(1), [&]() -> bool {
-          return TaskQueue_.size() < taskThreshold_;
-        })) {
-      minilog::log_error("task queue is full, submit task fail.");
-      auto task = std::make_shared<std::packaged_task<RetType()>>(
-          []() -> RetType { return RetType(); });
-      (*task)();
-      return task->get_future();
+    while (!notFull_.wait_for(lock, std::chrono::seconds(1), [&]() -> bool {
+      return TaskQueue_.size() < taskThreshold_;
+    })) {
+      minilog::log_warn(
+          "task queue is full,thread id {} submit task fail, try again",
+          convertThreadId(std::this_thread::get_id()));
     }
 
     // push task
