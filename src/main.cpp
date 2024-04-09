@@ -36,5 +36,10 @@ int main() {
   for (auto&& result : results)
     std::cout << " future get:" << result.get() << ' ' << std::endl;
   pool.submit(timeout_task);
+  minilog::log_warn("======= commit all 3");
+  for (int i = 0; i < 100; i++) {
+    pool.submit([i]() { minilog::log_warn("task {}", i); });
+  }
+  minilog::log_warn("done");
   return 0;
 }

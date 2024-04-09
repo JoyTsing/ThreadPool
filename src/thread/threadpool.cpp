@@ -119,7 +119,7 @@ void ThreadPool::newThread(int threadid) {
             if (duration.count() >= config::THREAD_MAX_THRESHOLD &&
                 curTheadSize_ > initThreadSize_) {
               // recycle
-              minilog::log_warn("thread id: {} timeout,destory", threadid);
+              minilog::log_warn("thread id: {} timeout,destroy", threadid);
               pool_.erase(threadid);
               curTheadSize_--;
               idleThreadSize_--;

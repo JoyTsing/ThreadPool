@@ -13,9 +13,9 @@
 #include "minilog/minilog.h"
 namespace threadpool {
 namespace config {
-static constexpr const int TASK_MAX_THRESHOLD = 8;
-static constexpr const int THREAD_MAX_THRESHOLD = 16;
-static constexpr const int THREAD_MAX_IDLE_SECOND = 30;
+static constexpr const int TASK_MAX_THRESHOLD = 20;
+static constexpr const int THREAD_MAX_THRESHOLD = 20;
+static constexpr const int THREAD_MAX_IDLE_SECOND = 1;
 }  // namespace config
 
 enum class PoolMode : uint8_t {
