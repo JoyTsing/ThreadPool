@@ -13,9 +13,9 @@ void test(int k) {
       minilog::log_info(
           "num: {} ,thread {}", i,
           std::hash<std::thread::id>{}(std::this_thread::get_id()));
-      if (i == 9999) {
-        minilog::log_warn("all submit");
-      }
+      // if (i == 9999) {
+      //   minilog::log_warn("all submit");
+      // }
     });
   }
   return;
@@ -26,12 +26,13 @@ TEST_CASE("thread-pool") {
   int numThreads = std::thread::hardware_concurrency();
   minilog::log_warn("max threads {}", numThreads);
   minilog::set_log_level(minilog::log_level::warn);
+
   pool.setMode(threadpool::PoolMode::MODE_FIXED);
-  pool.start(20);
+  pool.start(8);
   ankerl::nanobench::Bench().run("dead-lock test", []() {
-    for (int i = 0; i < 10001; i++) {
+    for (int i = 0; i < 10; i++) {
       test(i);
-      minilog::log_warn("done {}", i);
+      minilog::log_warn("epoch {}", i);
     }
   });
 }
