@@ -6,7 +6,6 @@
 #include <future>
 #include <memory>
 #include <mutex>
-#include <queue>
 #include <thread>
 #include <unordered_map>
 
@@ -97,7 +96,7 @@ class ThreadPool {
     return result;
   }
 
-  void start(int initThreadSize = std::thread::hardware_concurrency());
+  void start(int initThreadSize = std::thread::hardware_concurrency() / 2);
 
  private:
   void newThread(int threadid);
