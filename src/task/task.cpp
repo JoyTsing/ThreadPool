@@ -3,13 +3,13 @@
 #include <chrono>
 #include <thread>
 int sum1(int a, int b) {
-  std::this_thread::sleep_for(std::chrono::seconds(2));
+  std::this_thread::sleep_for(std::chrono::seconds(1));
   // 比较耗时
   return a + b;
 }
 
 int sum2(int a, int b, int c) {
-  std::this_thread::sleep_for(std::chrono::seconds(2));
+  std::this_thread::sleep_for(std::chrono::seconds(1));
   return a + b + c;
 }
 
@@ -20,13 +20,13 @@ void io_thread(int listenfd) {}
 void worker_thread(int clientfd) {}
 
 int expensive_task(int a, int b) {
-  std::this_thread::sleep_for(std::chrono::seconds(20));
+  std::this_thread::sleep_for(std::chrono::seconds(5));
   // 比较耗时
   return a + b;
 }
 
 void timeout_task() {
-  std::this_thread::sleep_for(std::chrono::seconds(40));
+  std::this_thread::sleep_for(std::chrono::seconds(10));
   return;
 }
 

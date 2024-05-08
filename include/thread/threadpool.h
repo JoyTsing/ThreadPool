@@ -11,6 +11,7 @@
 #include <unordered_map>
 
 #include "minilog/minilog.h"
+#include "queue/lockfree_queue.h"
 namespace threadpool {
 namespace config {
 static constexpr const int TASK_MAX_THRESHOLD = 20;
@@ -74,7 +75,7 @@ class ThreadPool {
 
     // push task
     minilog::log_info("submit task to thread pool.");
-    TaskQueue_.emplace([task]() { (*task)(); });
+    TaskQueue_.enqueue([task]() { (*task)(); });
     taskSize_++;
     // 通知分配线程执行任务
     notEmpty_.notify_all();
@@ -112,7 +113,9 @@ class ThreadPool {
   std::atomic<int> curTheadSize_;
   std::atomic<int> idleThreadSize_;
   // task queue
-  std::queue<Task> TaskQueue_;
+  // std::queue<Task> TaskQueue_;
+  BoundedQueue<Task> TaskQueue_;
+
   std::atomic<int> taskSize_;
   int taskThreshold_;
   // thread safe

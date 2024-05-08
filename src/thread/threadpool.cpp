@@ -32,7 +32,9 @@ ThreadPool::ThreadPool()
       taskThreshold_(config::TASK_MAX_THRESHOLD),
       threadSizeThreshHold_(config::THREAD_MAX_THRESHOLD),
       mod_(PoolMode::MODE_FIXED),
-      running_(false) {}
+      running_(false) {
+  TaskQueue_.Init(config::TASK_MAX_THRESHOLD);
+}
 
 ThreadPool::~ThreadPool() {
   running_ = false;
@@ -135,8 +137,7 @@ void ThreadPool::newThread(int threadid) {
       idleThreadSize_--;
       minilog::log_info("tid: {} get Task", tid);
       // get task
-      task = TaskQueue_.front();
-      TaskQueue_.pop();
+      TaskQueue_.dequeue(&task);
       taskSize_--;
       if (!TaskQueue_.empty()) {
         notEmpty_.notify_all();
