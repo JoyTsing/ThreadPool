@@ -113,7 +113,7 @@ TEST_CASE("lock-free queue test") {
   Test_ThreadPool test_;
   ankerl::nanobench::doNotOptimizeAway(test_);
   int iter = 0;
-  ankerl::nanobench::Bench().minEpochIterations(100).run(
+  ankerl::nanobench::Bench().minEpochIterations(500).run(
       "lock-free queue test", [&]() {
         test_.test();
         minilog::log_warn("epoch {}", iter++);
@@ -125,7 +125,7 @@ TEST_CASE("lock-free queue test") {
   Test_ThreadPool test_;
   ankerl::nanobench::doNotOptimizeAway(test_);
   int iter = 0;
-  ankerl::nanobench::Bench().minEpochIterations(100).run(
+  ankerl::nanobench::Bench().minEpochIterations(500).run(
       "memory and performance test", [&]() {
         test_.test2();
         minilog::log_warn("epoch {}", iter++);
@@ -137,7 +137,7 @@ TEST_CASE("lock-free queue test") {
   ThreadPool test_(8);
   ankerl::nanobench::doNotOptimizeAway(test_);
   int iter = 0;
-  ankerl::nanobench::Bench().minEpochIterations(100).run(
+  ankerl::nanobench::Bench().minEpochIterations(500).run(
       "check queue correct", [&]() {
         std::vector<std::future<int>> results;
 

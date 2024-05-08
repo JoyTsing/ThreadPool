@@ -13,9 +13,9 @@
 #include "queue/lockfree_queue.h"
 namespace threadpool {
 namespace config {
-static constexpr const int TASK_MAX_THRESHOLD = 20;
-static constexpr const int THREAD_MAX_THRESHOLD = 20;
-static constexpr const int THREAD_MAX_IDLE_SECOND = 1;
+static constexpr const int TASK_MAX_THRESHOLD = 60;
+static constexpr const int THREAD_MAX_THRESHOLD = 12;
+static constexpr const int THREAD_MAX_IDLE_SECOND = 3;
 }  // namespace config
 
 enum class PoolMode : uint8_t {
@@ -73,7 +73,7 @@ class ThreadPool {
     }
 
     // push task
-    minilog::log_info("submit task to thread pool.");
+    // minilog::log_info("submit task to thread pool.");
     TaskQueue_.enqueue([task]() { (*task)(); });
     taskSize_++;
     // 通知分配线程执行任务
@@ -88,7 +88,7 @@ class ThreadPool {
       int threadID = thread_ptr->getID();
       // push to pool
       pool_.emplace(threadID, std::move(thread_ptr));
-      minilog::log_info("create new thread, id {}.", threadID);
+      // minilog::log_info("create new thread, id {}.", threadID);
       pool_[threadID]->start();
       curTheadSize_++;
       idleThreadSize_++;
@@ -96,7 +96,7 @@ class ThreadPool {
     return result;
   }
 
-  void start(int initThreadSize = std::thread::hardware_concurrency() / 2);
+  void start(int initThreadSize = std::thread::hardware_concurrency() / 4);
 
  private:
   void newThread(int threadid);

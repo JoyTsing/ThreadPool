@@ -41,7 +41,7 @@ ThreadPool::~ThreadPool() {
   std::unique_lock<std::mutex> lock(mtx_);
   notEmpty_.notify_all();
   exit_.wait(lock, [&]() -> bool { return pool_.size() == 0; });
-  minilog::log_info("Thread Pool destroy.");
+  // minilog::log_info("Thread Pool destroy.");
 }
 
 void ThreadPool::setMode(PoolMode mod) {
@@ -81,12 +81,12 @@ void ThreadPool::start(int initThreadSize) {
         std::bind(&ThreadPool::newThread, this, std::placeholders::_1));
     int threadID = thread_ptr->getID();
     pool_.emplace(threadID, std::move(thread_ptr));
-    minilog::log_info("create new thread, id {}.", threadID);
+    // minilog::log_info("create new thread, id {}.", threadID);
   }
   // 启动线程
   for (const auto& [id, thread] : pool_) {
     idleThreadSize_++;  // 空闲线程数量
-    minilog::log_info("thread id {} start.", id);
+    // minilog::log_info("thread id {} start.", id);
     thread->start();
   }
 }
@@ -98,14 +98,14 @@ void ThreadPool::newThread(int threadid) {
     Task task;
     {
       std::unique_lock<std::mutex> lock(mtx_);
-      minilog::log_info("tid: {} try get task", tid);
-      // cached下，可能动态创建许多线程，但是如果空闲时间超过1min，就会被销毁
-      // 主要销毁多出去threshold的线程
+      // minilog::log_info("tid: {} try get task", tid);
+      //  cached下，可能动态创建许多线程，但是如果空闲时间超过1min，就会被销毁
+      //  主要销毁多出去threshold的线程
 
       while (TaskQueue_.empty()) {
         if (!running_) {
           pool_.erase(threadid);
-          minilog::log_info("thread id: {} exit.", threadid);
+          // minilog::log_info("thread id: {} exit.", threadid);
           exit_.notify_all();
           return;
         }
@@ -118,7 +118,7 @@ void ThreadPool::newThread(int threadid) {
             auto now = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::seconds>(
                 now - baseline);
-            if (duration.count() >= config::THREAD_MAX_THRESHOLD &&
+            if (duration.count() >= config::THREAD_MAX_IDLE_SECOND &&
                 curTheadSize_ > initThreadSize_) {
               // recycle
               minilog::log_warn("thread id: {} timeout,destroy", threadid);
@@ -135,8 +135,8 @@ void ThreadPool::newThread(int threadid) {
       }
 
       idleThreadSize_--;
-      minilog::log_info("tid: {} get Task", tid);
-      // get task
+      // minilog::log_info("tid: {} get Task", tid);
+      //  get task
       TaskQueue_.dequeue(&task);
       taskSize_--;
       if (!TaskQueue_.empty()) {
@@ -147,7 +147,7 @@ void ThreadPool::newThread(int threadid) {
     }
     // 执行任务
     if (task != nullptr) {
-      minilog::log_info("tid: {} do task", tid);
+      // minilog::log_info("tid: {} do task", tid);
       task();
     }
 
