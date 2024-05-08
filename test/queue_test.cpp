@@ -16,7 +16,7 @@ class ThreadPool {
       : stop_(false) {
     // 初始化失败抛出异常
     if (!task_queue_.Init(max_task_num,
-                          new wait_strategy::TimeoutBlockStrategy())) {
+                          new wait_strategy::TimeoutBlockStrategy(2000))) {
       throw std::runtime_error("Task queue init failed");
     }
 
@@ -53,7 +53,7 @@ class ThreadPool {
       return std::future<return_type>();
     }
 
-    task_queue_.enqueue([task]() { (*task)(); });
+    task_queue_.wait_enqueue([task]() { (*task)(); });
     return res;
   }
 
@@ -81,26 +81,27 @@ class Test_ThreadPool {
     ThreadPool thread_pool(4);
     std::vector<std::future<std::string>> results;
 
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 10000; i++) {
       results.emplace_back(thread_pool.Enqueue([i]() {
         std::ostringstream ss;
         ss << "hello world" << i;
-        std::cout << ss.str() << std::endl;
         return ss.str();
       }));
     }
 
     for (auto &&result : results) {
-      std::cout << "result: " << result.get() << std::endl;
+      result.get();
     }
   }
   void test2() {
     ThreadPool thread_pool(4);
     for (int i = 0; i < 10000; i++) {
       thread_pool.Enqueue([&]() {
-        minilog::log_info(
-            "num: {} ,thread {}", i,
-            std::hash<std::thread::id>{}(std::this_thread::get_id()));
+        int j = i + 1;
+        j *= j % (i + 1);
+        // minilog::log_info(
+        //     "num: {} ,thread {}", i,
+        //     std::hash<std::thread::id>{}(std::this_thread::get_id()));
       });
     }
     return;
@@ -108,22 +109,46 @@ class Test_ThreadPool {
 };
 
 // NOLINTNEXTLINE
-TEST_CASE("lock-free queue test 1") {
+TEST_CASE("lock-free queue test") {
   Test_ThreadPool test_;
-  ankerl::nanobench::Bench().run("lock-free queue test", [&]() {
-    for (int i = 0; i < 100; i++) {
-      test_.test();
-    }
-  });
+  ankerl::nanobench::doNotOptimizeAway(test_);
+  int iter = 0;
+  ankerl::nanobench::Bench().minEpochIterations(100).run(
+      "lock-free queue test", [&]() {
+        test_.test();
+        minilog::log_warn("epoch {}", iter++);
+      });
 }
 
 // NOLINTNEXTLINE
-TEST_CASE("lock-free queue test 2") {
+TEST_CASE("lock-free queue test") {
   Test_ThreadPool test_;
-  ankerl::nanobench::Bench().run("memory and performance test", [&]() {
-    for (int i = 0; i < 100; i++) {
-      test_.test2();
-      minilog::log_warn("epoch {}", i);
-    }
-  });
+  ankerl::nanobench::doNotOptimizeAway(test_);
+  int iter = 0;
+  ankerl::nanobench::Bench().minEpochIterations(100).run(
+      "memory and performance test", [&]() {
+        test_.test2();
+        minilog::log_warn("epoch {}", iter++);
+      });
+}
+
+// NOLINTNEXTLINE
+TEST_CASE("lock-free queue test") {
+  ThreadPool test_(8);
+  ankerl::nanobench::doNotOptimizeAway(test_);
+  int iter = 0;
+  ankerl::nanobench::Bench().minEpochIterations(100).run(
+      "check queue correct", [&]() {
+        std::vector<std::future<int>> results;
+
+        for (int i = 0; i < 10000; i++) {
+          results.emplace_back(test_.Enqueue([i]() { return i; }));
+        }
+
+        for (int i = 0; i < 10000; i++) {
+          int res = results[i].get();
+          CHECK(res == i);
+        }
+        minilog::log_warn("epoch {}", iter++);
+      });
 }

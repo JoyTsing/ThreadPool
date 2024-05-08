@@ -63,9 +63,9 @@ class BoundedQueue {
  private:
 // 指定内存对齐方式, 可提高代码性能和效率
 #define CACHELINE_SIZE 64
-  alignas(CACHELINE_SIZE) std::atomic<std::uint64_t> head_{0};
-  alignas(CACHELINE_SIZE) std::atomic<std::uint64_t> tail_{1};
-  alignas(CACHELINE_SIZE) std::atomic<std::uint64_t> max_head_{
+  alignas(CACHELINE_SIZE) std::atomic<std::uint64_t> head_ = {0};
+  alignas(CACHELINE_SIZE) std::atomic<std::uint64_t> tail_ = {1};
+  alignas(CACHELINE_SIZE) std::atomic<std::uint64_t> max_head_ = {
       1};  // 最大的head, tail的备份
 #undef CACHELINE_SIZE
 
@@ -183,9 +183,9 @@ bool BoundedQueue<T>::dequeue(T* item) {
       return false;
     }
     *item = pool_[get_index(new_head)];
-  } while (head_.compare_exchange_weak(old_head, new_head,
-                                       std::memory_order_acq_rel,
-                                       std::memory_order_relaxed));
+  } while (!head_.compare_exchange_weak(old_head, new_head,
+                                        std::memory_order_acq_rel,
+                                        std::memory_order_relaxed));
   wait_strategy_->NotifyOne();
   return true;
 }

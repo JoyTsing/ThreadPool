@@ -45,23 +45,23 @@ class BlockWaitStrategy : public WaitStrategy {
 class SleepWaitStrategy : public WaitStrategy {
  public:
   SleepWaitStrategy() = default;
-  explicit SleepWaitStrategy(std::uint64_t sleep_time_us)
-      : sleep_time_us_(sleep_time_us) {}
+  explicit SleepWaitStrategy(std::uint64_t sleep_time_ms)
+      : sleep_time_ms_(sleep_time_ms) {}
 
   bool EmptyWait() override {
-    std::this_thread::sleep_for(std::chrono::microseconds(sleep_time_us_));
+    std::this_thread::sleep_for(std::chrono::microseconds(sleep_time_ms_));
     return true;
   }
 
-  void set_sleep_time(std::uint64_t sleep_time_us) {
-    if (sleep_time_us < 0) {
-      sleep_time_us = 1000;
+  void set_sleep_time(std::uint64_t sleep_time_ms) {
+    if (sleep_time_ms < 0) {
+      sleep_time_ms = 1000;
     }
-    sleep_time_us_ = sleep_time_us;
+    sleep_time_ms_ = sleep_time_ms;
   }
 
  private:
-  std::uint64_t sleep_time_us_ = 10000;
+  std::uint64_t sleep_time_ms_ = 1000;
 };
 
 /**
@@ -93,8 +93,7 @@ class TimeoutBlockStrategy : public WaitStrategy {
 
   bool EmptyWait() override {
     std::unique_lock<std::mutex> lock(mutex_);
-    if (cv_.wait_for(lock, std::chrono::microseconds(timeout_ms_)) ==
-        std::cv_status::timeout) {
+    if (cv_.wait_for(lock, timeout_ms_) == std::cv_status::timeout) {
       return false;
     }
     return true;
@@ -109,7 +108,7 @@ class TimeoutBlockStrategy : public WaitStrategy {
   }
 
  private:
-  std::chrono::milliseconds timeout_ms_;
+  std::chrono::milliseconds timeout_ms_ = std::chrono::milliseconds(1000);
   std::condition_variable cv_;
   std::mutex mutex_;
 };
