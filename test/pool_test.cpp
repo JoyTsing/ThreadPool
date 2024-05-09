@@ -1,8 +1,51 @@
 #include <doctest/doctest.h>
 #include <nanobench.h>
 
+#include <boost/asio.hpp>
+#include <boost/asio/thread_pool.hpp>
+#include <boost/system/detail/error_code.hpp>
+
 #include "minilog/minilog.h"
 #include "thread/threadpool.h"
+
+// NOLINTNEXTLINE
+TEST_CASE("thread-pool") {
+  boost::asio::thread_pool pool(5);
+  minilog::set_log_level(minilog::log_level::warn);
+  int iter = 0;
+  ankerl::nanobench::Bench().minEpochIterations(500).run(
+      "boost::asio::thread_pool speed test", [&]() {
+        for (int i = 0; i < 10000; i++) {
+          boost::asio::post(pool, [i]() {
+            std::ostringstream ss;
+            ss << "hello world" << i;
+            return ss.str();
+          });
+        }
+        pool.join();
+        minilog::log_warn("epoch {}", iter++);
+      });
+}
+
+// NOLINTNEXTLINE
+TEST_CASE("thread-pool") {
+  threadpool::ThreadPool pool;
+  minilog::set_log_level(minilog::log_level::warn);
+  pool.setMode(threadpool::PoolMode::MODE_CACHED);
+  pool.start();
+  int iter = 0;
+  ankerl::nanobench::Bench().minEpochIterations(500).run(
+      "thread-pool mode cached speed test", [&]() {
+        for (int i = 0; i < 10000; i++) {
+          pool.submit([i]() {
+            std::ostringstream ss;
+            ss << "hello world" << i;
+            return ss.str();
+          });
+        }
+        minilog::log_warn("epoch {}", iter++);
+      });
+}
 
 // NOLINTNEXTLINE
 TEST_CASE("thread-pool") {
