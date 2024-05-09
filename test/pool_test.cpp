@@ -13,6 +13,7 @@ TEST_CASE("thread-pool") {
   boost::asio::thread_pool pool(5);
   minilog::set_log_level(minilog::log_level::warn);
   int iter = 0;
+  // 100 times faster than mine, LOL
   ankerl::nanobench::Bench().minEpochIterations(500).run(
       "boost::asio::thread_pool speed test", [&]() {
         for (int i = 0; i < 10000; i++) {

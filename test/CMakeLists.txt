@@ -25,6 +25,8 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(backward)
 
+find_package(Boost REQUIRED)
+
 file(GLOB_RECURSE all_tests *.cpp)
 file(GLOB_RECURSE all_src CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/src/*.cpp)
 list(REMOVE_ITEM all_src ${PROJECT_SOURCE_DIR}/src/main.cpp)
@@ -39,5 +41,5 @@ foreach(v ${all_tests})
   target_compile_features(${target_name} PUBLIC cxx_std_20)
   target_include_directories(${target_name} PUBLIC ${PROJECT_SOURCE_DIR}/include/)
   target_link_libraries(${target_name} PUBLIC doctest_with_main nanobench
-    Backward::Backward Backward::Object)
+    Backward::Backward Backward::Object ${Boost_LIBRARY_DIRS})
 endforeach()
