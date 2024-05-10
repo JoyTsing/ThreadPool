@@ -1,0 +1,2189 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" width="1200" height="950" onload="init(evt)" viewBox="0 0 1200 950" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<!-- Flame graph stack visualization. See https://github.com/brendangregg/FlameGraph for latest version, and http://www.brendangregg.com/flamegraphs.html for examples. -->
+<!-- NOTES:  -->
+<defs>
+	<linearGradient id="background" y1="0" y2="1" x1="0" x2="0" >
+		<stop stop-color="#eeeeee" offset="5%" />
+		<stop stop-color="#eeeeb0" offset="95%" />
+	</linearGradient>
+</defs>
+<style type="text/css">
+	text { font-family:Verdana; font-size:12px; fill:rgb(0,0,0); }
+	#search, #ignorecase { opacity:0.1; cursor:pointer; }
+	#search:hover, #search.show, #ignorecase:hover, #ignorecase.show { opacity:1; }
+	#subtitle { text-anchor:middle; font-color:rgb(160,160,160); }
+	#title { text-anchor:middle; font-size:17px}
+	#unzoom { cursor:pointer; }
+	#frames > *:hover { stroke:black; stroke-width:0.5; cursor:pointer; }
+	.hide { display:none; }
+	.parent { opacity:0.5; }
+</style>
+<script type="text/ecmascript">
+<![CDATA[
+	"use strict";
+	var details, searchbtn, unzoombtn, matchedtxt, svg, searching, currentSearchTerm, ignorecase, ignorecaseBtn;
+	function init(evt) {
+		details = document.getElementById("details").firstChild;
+		searchbtn = document.getElementById("search");
+		ignorecaseBtn = document.getElementById("ignorecase");
+		unzoombtn = document.getElementById("unzoom");
+		matchedtxt = document.getElementById("matched");
+		svg = document.getElementsByTagName("svg")[0];
+		searching = 0;
+		currentSearchTerm = null;
+
+		// use GET parameters to restore a flamegraphs state.
+		var params = get_params();
+		if (params.x && params.y)
+			zoom(find_group(document.querySelector('[x="' + params.x + '"][y="' + params.y + '"]')));
+                if (params.s) search(params.s);
+	}
+
+	// event listeners
+	window.addEventListener("click", function(e) {
+		var target = find_group(e.target);
+		if (target) {
+			if (target.nodeName == "a") {
+				if (e.ctrlKey === false) return;
+				e.preventDefault();
+			}
+			if (target.classList.contains("parent")) unzoom(true);
+			zoom(target);
+			if (!document.querySelector('.parent')) {
+				// we have basically done a clearzoom so clear the url
+				var params = get_params();
+				if (params.x) delete params.x;
+				if (params.y) delete params.y;
+				history.replaceState(null, null, parse_params(params));
+				unzoombtn.classList.add("hide");
+				return;
+			}
+
+			// set parameters for zoom state
+			var el = target.querySelector("rect");
+			if (el && el.attributes && el.attributes.y && el.attributes._orig_x) {
+				var params = get_params()
+				params.x = el.attributes._orig_x.value;
+				params.y = el.attributes.y.value;
+				history.replaceState(null, null, parse_params(params));
+			}
+		}
+		else if (e.target.id == "unzoom") clearzoom();
+		else if (e.target.id == "search") search_prompt();
+		else if (e.target.id == "ignorecase") toggle_ignorecase();
+	}, false)
+
+	// mouse-over for info
+	// show
+	window.addEventListener("mouseover", function(e) {
+		var target = find_group(e.target);
+		if (target) details.nodeValue = "Function: " + g_to_text(target);
+	}, false)
+
+	// clear
+	window.addEventListener("mouseout", function(e) {
+		var target = find_group(e.target);
+		if (target) details.nodeValue = ' ';
+	}, false)
+
+	// ctrl-F for search
+	// ctrl-I to toggle case-sensitive search
+	window.addEventListener("keydown",function (e) {
+		if (e.keyCode === 114 || (e.ctrlKey && e.keyCode === 70)) {
+			e.preventDefault();
+			search_prompt();
+		}
+		else if (e.ctrlKey && e.keyCode === 73) {
+			e.preventDefault();
+			toggle_ignorecase();
+		}
+	}, false)
+
+	// functions
+	function get_params() {
+		var params = {};
+		var paramsarr = window.location.search.substr(1).split('&');
+		for (var i = 0; i < paramsarr.length; ++i) {
+			var tmp = paramsarr[i].split("=");
+			if (!tmp[0] || !tmp[1]) continue;
+			params[tmp[0]]  = decodeURIComponent(tmp[1]);
+		}
+		return params;
+	}
+	function parse_params(params) {
+		var uri = "?";
+		for (var key in params) {
+			uri += key + '=' + encodeURIComponent(params[key]) + '&';
+		}
+		if (uri.slice(-1) == "&")
+			uri = uri.substring(0, uri.length - 1);
+		if (uri == '?')
+			uri = window.location.href.split('?')[0];
+		return uri;
+	}
+	function find_child(node, selector) {
+		var children = node.querySelectorAll(selector);
+		if (children.length) return children[0];
+	}
+	function find_group(node) {
+		var parent = node.parentElement;
+		if (!parent) return;
+		if (parent.id == "frames") return node;
+		return find_group(parent);
+	}
+	function orig_save(e, attr, val) {
+		if (e.attributes["_orig_" + attr] != undefined) return;
+		if (e.attributes[attr] == undefined) return;
+		if (val == undefined) val = e.attributes[attr].value;
+		e.setAttribute("_orig_" + attr, val);
+	}
+	function orig_load(e, attr) {
+		if (e.attributes["_orig_"+attr] == undefined) return;
+		e.attributes[attr].value = e.attributes["_orig_" + attr].value;
+		e.removeAttribute("_orig_"+attr);
+	}
+	function g_to_text(e) {
+		var text = find_child(e, "title").firstChild.nodeValue;
+		return (text)
+	}
+	function g_to_func(e) {
+		var func = g_to_text(e);
+		// if there's any manipulation we want to do to the function
+		// name before it's searched, do it here before returning.
+		return (func);
+	}
+	function update_text(e) {
+		var r = find_child(e, "rect");
+		var t = find_child(e, "text");
+		var w = parseFloat(r.attributes.width.value) -3;
+		var txt = find_child(e, "title").textContent.replace(/\([^(]*\)$/,"");
+		t.attributes.x.value = parseFloat(r.attributes.x.value) + 3;
+
+		// Smaller than this size won't fit anything
+		if (w < 2 * 12 * 0.59) {
+			t.textContent = "";
+			return;
+		}
+
+		t.textContent = txt;
+		var sl = t.getSubStringLength(0, txt.length);
+		// check if only whitespace or if we can fit the entire string into width w
+		if (/^ *$/.test(txt) || sl < w)
+			return;
+
+		// this isn't perfect, but gives a good starting point
+		// and avoids calling getSubStringLength too often
+		var start = Math.floor((w/sl) * txt.length);
+		for (var x = start; x > 0; x = x-2) {
+			if (t.getSubStringLength(0, x + 2) <= w) {
+				t.textContent = txt.substring(0, x) + "..";
+				return;
+			}
+		}
+		t.textContent = "";
+	}
+
+	// zoom
+	function zoom_reset(e) {
+		if (e.attributes != undefined) {
+			orig_load(e, "x");
+			orig_load(e, "width");
+		}
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_reset(c[i]);
+		}
+	}
+	function zoom_child(e, x, ratio) {
+		if (e.attributes != undefined) {
+			if (e.attributes.x != undefined) {
+				orig_save(e, "x");
+				e.attributes.x.value = (parseFloat(e.attributes.x.value) - x - 10) * ratio + 10;
+				if (e.tagName == "text")
+					e.attributes.x.value = find_child(e.parentNode, "rect[x]").attributes.x.value + 3;
+			}
+			if (e.attributes.width != undefined) {
+				orig_save(e, "width");
+				e.attributes.width.value = parseFloat(e.attributes.width.value) * ratio;
+			}
+		}
+
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_child(c[i], x - 10, ratio);
+		}
+	}
+	function zoom_parent(e) {
+		if (e.attributes) {
+			if (e.attributes.x != undefined) {
+				orig_save(e, "x");
+				e.attributes.x.value = 10;
+			}
+			if (e.attributes.width != undefined) {
+				orig_save(e, "width");
+				e.attributes.width.value = parseInt(svg.width.baseVal.value) - (10 * 2);
+			}
+		}
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_parent(c[i]);
+		}
+	}
+	function zoom(node) {
+		var attr = find_child(node, "rect").attributes;
+		var width = parseFloat(attr.width.value);
+		var xmin = parseFloat(attr.x.value);
+		var xmax = parseFloat(xmin + width);
+		var ymin = parseFloat(attr.y.value);
+		var ratio = (svg.width.baseVal.value - 2 * 10) / width;
+
+		// XXX: Workaround for JavaScript float issues (fix me)
+		var fudge = 0.0001;
+
+		unzoombtn.classList.remove("hide");
+
+		var el = document.getElementById("frames").children;
+		for (var i = 0; i < el.length; i++) {
+			var e = el[i];
+			var a = find_child(e, "rect").attributes;
+			var ex = parseFloat(a.x.value);
+			var ew = parseFloat(a.width.value);
+			var upstack;
+			// Is it an ancestor
+			if (0 == 0) {
+				upstack = parseFloat(a.y.value) > ymin;
+			} else {
+				upstack = parseFloat(a.y.value) < ymin;
+			}
+			if (upstack) {
+				// Direct ancestor
+				if (ex <= xmin && (ex+ew+fudge) >= xmax) {
+					e.classList.add("parent");
+					zoom_parent(e);
+					update_text(e);
+				}
+				// not in current path
+				else
+					e.classList.add("hide");
+			}
+			// Children maybe
+			else {
+				// no common path
+				if (ex < xmin || ex + fudge >= xmax) {
+					e.classList.add("hide");
+				}
+				else {
+					zoom_child(e, xmin, ratio);
+					update_text(e);
+				}
+			}
+		}
+		search();
+	}
+	function unzoom(dont_update_text) {
+		unzoombtn.classList.add("hide");
+		var el = document.getElementById("frames").children;
+		for(var i = 0; i < el.length; i++) {
+			el[i].classList.remove("parent");
+			el[i].classList.remove("hide");
+			zoom_reset(el[i]);
+			if(!dont_update_text) update_text(el[i]);
+		}
+		search();
+	}
+	function clearzoom() {
+		unzoom();
+
+		// remove zoom state
+		var params = get_params();
+		if (params.x) delete params.x;
+		if (params.y) delete params.y;
+		history.replaceState(null, null, parse_params(params));
+	}
+
+	// search
+	function toggle_ignorecase() {
+		ignorecase = !ignorecase;
+		if (ignorecase) {
+			ignorecaseBtn.classList.add("show");
+		} else {
+			ignorecaseBtn.classList.remove("show");
+		}
+		reset_search();
+		search();
+	}
+	function reset_search() {
+		var el = document.querySelectorAll("#frames rect");
+		for (var i = 0; i < el.length; i++) {
+			orig_load(el[i], "fill")
+		}
+		var params = get_params();
+		delete params.s;
+		history.replaceState(null, null, parse_params(params));
+	}
+	function search_prompt() {
+		if (!searching) {
+			var term = prompt("Enter a search term (regexp " +
+			    "allowed, eg: ^ext4_)"
+			    + (ignorecase ? ", ignoring case" : "")
+			    + "\nPress Ctrl-i to toggle case sensitivity", "");
+			if (term != null) search(term);
+		} else {
+			reset_search();
+			searching = 0;
+			currentSearchTerm = null;
+			searchbtn.classList.remove("show");
+			searchbtn.firstChild.nodeValue = "Search"
+			matchedtxt.classList.add("hide");
+			matchedtxt.firstChild.nodeValue = ""
+		}
+	}
+	function search(term) {
+		if (term) currentSearchTerm = term;
+
+		var re = new RegExp(currentSearchTerm, ignorecase ? 'i' : '');
+		var el = document.getElementById("frames").children;
+		var matches = new Object();
+		var maxwidth = 0;
+		for (var i = 0; i < el.length; i++) {
+			var e = el[i];
+			var func = g_to_func(e);
+			var rect = find_child(e, "rect");
+			if (func == null || rect == null)
+				continue;
+
+			// Save max width. Only works as we have a root frame
+			var w = parseFloat(rect.attributes.width.value);
+			if (w > maxwidth)
+				maxwidth = w;
+
+			if (func.match(re)) {
+				// highlight
+				var x = parseFloat(rect.attributes.x.value);
+				orig_save(rect, "fill");
+				rect.attributes.fill.value = "rgb(230,0,230)";
+
+				// remember matches
+				if (matches[x] == undefined) {
+					matches[x] = w;
+				} else {
+					if (w > matches[x]) {
+						// overwrite with parent
+						matches[x] = w;
+					}
+				}
+				searching = 1;
+			}
+		}
+		if (!searching)
+			return;
+		var params = get_params();
+		params.s = currentSearchTerm;
+		history.replaceState(null, null, parse_params(params));
+
+		searchbtn.classList.add("show");
+		searchbtn.firstChild.nodeValue = "Reset Search";
+
+		// calculate percent matched, excluding vertical overlap
+		var count = 0;
+		var lastx = -1;
+		var lastw = 0;
+		var keys = Array();
+		for (k in matches) {
+			if (matches.hasOwnProperty(k))
+				keys.push(k);
+		}
+		// sort the matched frames by their x location
+		// ascending, then width descending
+		keys.sort(function(a, b){
+			return a - b;
+		});
+		// Step through frames saving only the biggest bottom-up frames
+		// thanks to the sort order. This relies on the tree property
+		// where children are always smaller than their parents.
+		var fudge = 0.0001;	// JavaScript floating point
+		for (var k in keys) {
+			var x = parseFloat(keys[k]);
+			var w = matches[keys[k]];
+			if (x >= lastx + lastw - fudge) {
+				count += w;
+				lastx = x;
+				lastw = w;
+			}
+		}
+		// display matched percent
+		matchedtxt.classList.remove("hide");
+		var pct = 100 * count / maxwidth;
+		if (pct != 100) pct = pct.toFixed(1)
+		matchedtxt.firstChild.nodeValue = "Matched: " + pct + "%";
+	}
+]]>
+</script>
+<rect x="0.0" y="0" width="1200.0" height="950.0" fill="url(#background)"  />
+<text id="title" x="600.00" y="24" >Flame Graph</text>
+<text id="details" x="10.00" y="933" > </text>
+<text id="unzoom" x="10.00" y="24" class="hide">Reset Zoom</text>
+<text id="search" x="1090.00" y="24" >Search</text>
+<text id="ignorecase" x="1174.00" y="24" >ic</text>
+<text id="matched" x="1090.00" y="933" > </text>
+<g id="frames">
+<g >
+<title>arch_do_signal_or_restart (509,000,000 samples, 0.85%)</title><rect x="1091.6" y="805" width="10.0" height="15.0" fill="rgb(252,220,52)" rx="2" ry="2" />
+<text  x="1094.62" y="815.5" ></text>
+</g>
+<g >
+<title>get_page_from_freelist (8,750,000 samples, 0.01%)</title><rect x="1051.3" y="725" width="0.1" height="15.0" fill="rgb(252,218,52)" rx="2" ry="2" />
+<text  x="1054.27" y="735.5" ></text>
+</g>
+<g >
+<title>std::__format::__formatter_chrono&lt;char&gt;::_S_date&lt;std::chrono::time_point&lt;std::chrono::_V2::system_clock, std::chrono::duration&lt;long, std::ratio&lt;1l, 1000000000l&gt; &gt; &gt; &gt; (9,000,000 samples, 0.01%)</title><rect x="855.3" y="229" width="0.2" height="15.0" fill="rgb(243,178,42)" rx="2" ry="2" />
+<text  x="858.28" y="239.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::posix_mutex::unlock (10,250,000 samples, 0.02%)</title><rect x="528.8" y="597" width="0.2" height="15.0" fill="rgb(242,171,40)" rx="2" ry="2" />
+<text  x="531.82" y="607.5" ></text>
+</g>
+<g >
+<title>boost::asio::get_associated_allocator&lt;DOCTEST_ANON_FUNC_2 (82,250,000 samples, 0.14%)</title><rect x="147.9" y="693" width="1.6" height="15.0" fill="rgb(239,157,37)" rx="2" ry="2" />
+<text  x="150.86" y="703.5" ></text>
+</g>
+<g >
+<title>std::formatter&lt;long long, char&gt;::format&lt;std::__format::_Sink_iter&lt;char&gt; &gt; (11,750,000 samples, 0.02%)</title><rect x="857.3" y="85" width="0.3" height="15.0" fill="rgb(237,150,36)" rx="2" ry="2" />
+<text  x="860.34" y="95.5" ></text>
+</g>
+<g >
+<title>std::format&lt;int&gt; (46,000,000 samples, 0.08%)</title><rect x="855.5" y="229" width="0.9" height="15.0" fill="rgb(207,10,2)" rx="2" ry="2" />
+<text  x="858.52" y="239.5" ></text>
+</g>
+<g >
+<title>get_page_from_freelist (165,000,000 samples, 0.27%)</title><rect x="1185.2" y="757" width="3.3" height="15.0" fill="rgb(252,218,52)" rx="2" ry="2" />
+<text  x="1188.22" y="767.5" ></text>
+</g>
+<g >
+<title>__GI___readlink (32,250,000 samples, 0.05%)</title><rect x="12.4" y="837" width="0.7" height="15.0" fill="rgb(225,94,22)" rx="2" ry="2" />
+<text  x="15.44" y="847.5" ></text>
+</g>
+<g >
+<title>[unknown] (7,750,000 samples, 0.01%)</title><rect x="862.6" y="677" width="0.2" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="865.65" y="687.5" ></text>
+</g>
+<g >
+<title>std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;::_M_append (6,500,000 samples, 0.01%)</title><rect x="854.5" y="357" width="0.1" height="15.0" fill="rgb(222,79,19)" rx="2" ry="2" />
+<text  x="857.49" y="367.5" ></text>
+</g>
+<g >
+<title>[unknown] (10,500,000 samples, 0.02%)</title><rect x="30.0" y="837" width="0.2" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="32.96" y="847.5" ></text>
+</g>
+<g >
+<title>std::chrono::operator&lt;&lt; &lt;char, std::char_traits&lt;char&gt;, std::chrono::duration&lt;long, std::ratio&lt;1l, 1000000000l&gt; &gt; &gt; (290,500,000 samples, 0.48%)</title><rect x="854.1" y="453" width="5.7" height="15.0" fill="rgb(251,215,51)" rx="2" ry="2" />
+<text  x="857.14" y="463.5" ></text>
+</g>
+<g >
+<title>std::formatter&lt;long long, char&gt;::format&lt;std::__format::_Sink_iter&lt;char&gt; &gt; (9,750,000 samples, 0.02%)</title><rect x="858.7" y="85" width="0.2" height="15.0" fill="rgb(237,150,36)" rx="2" ry="2" />
+<text  x="861.69" y="95.5" ></text>
+</g>
+<g >
+<title>__GI___pthread_enable_asynccancel (6,000,000 samples, 0.01%)</title><rect x="25.5" y="853" width="0.1" height="15.0" fill="rgb(240,165,39)" rx="2" ry="2" />
+<text  x="28.51" y="863.5" ></text>
+</g>
+<g >
+<title>do_syscall_64 (509,000,000 samples, 0.85%)</title><rect x="1091.6" y="853" width="10.0" height="15.0" fill="rgb(209,20,4)" rx="2" ry="2" />
+<text  x="1094.62" y="863.5" ></text>
+</g>
+<g >
+<title>__pte_alloc (18,000,000 samples, 0.03%)</title><rect x="1051.1" y="773" width="0.3" height="15.0" fill="rgb(218,62,15)" rx="2" ry="2" />
+<text  x="1054.09" y="783.5" ></text>
+</g>
+<g >
+<title>boost::asio::thread_pool::basic_executor_type&lt;std::allocator&lt;void&gt;, 0u&gt;::~basic_executor_type (13,750,000 samples, 0.02%)</title><rect x="827.5" y="725" width="0.3" height="15.0" fill="rgb(228,107,25)" rx="2" ry="2" />
+<text  x="830.51" y="735.5" ></text>
+</g>
+<g >
+<title>__cgroup_throttle_swaprate (49,500,000 samples, 0.08%)</title><rect x="1044.8" y="773" width="1.0" height="15.0" fill="rgb(221,73,17)" rx="2" ry="2" />
+<text  x="1047.83" y="783.5" ></text>
+</g>
+<g >
+<title>handle_mm_fault (7,645,750,000 samples, 12.72%)</title><rect x="940.9" y="805" width="150.1" height="15.0" fill="rgb(234,135,32)" rx="2" ry="2" />
+<text  x="943.87" y="815.5" >handle_mm_fault</text>
+</g>
+<g >
+<title>boost::asio::detail::initiate_post_with_executor&lt;boost::asio::thread_pool::basic_executor_type&lt;std::allocator&lt;void&gt;, 0u&gt; &gt;::operator (102,250,000 samples, 0.17%)</title><rect x="796.6" y="725" width="2.0" height="15.0" fill="rgb(205,2,0)" rx="2" ry="2" />
+<text  x="799.56" y="735.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::executor_op&lt;boost::asio::detail::binder0&lt;DOCTEST_ANON_FUNC_2 (6,942,250,000 samples, 11.55%)</title><rect x="211.6" y="661" width="136.3" height="15.0" fill="rgb(254,226,54)" rx="2" ry="2" />
+<text  x="214.61" y="671.5" >boost::asio::deta..</text>
+</g>
+<g >
+<title>std::__format::__formatter_chrono&lt;char&gt;::_S_days&lt;std::chrono::time_point&lt;std::chrono::_V2::system_clock, std::chrono::duration&lt;long, std::ratio&lt;1l, 1000000000l&gt; &gt; &gt; &gt; (5,500,000 samples, 0.01%)</title><rect x="855.3" y="213" width="0.1" height="15.0" fill="rgb(221,73,17)" rx="2" ry="2" />
+<text  x="858.28" y="223.5" ></text>
+</g>
+<g >
+<title>std::__format::__write&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt; (17,000,000 samples, 0.03%)</title><rect x="863.1" y="661" width="0.4" height="15.0" fill="rgb(211,29,6)" rx="2" ry="2" />
+<text  x="866.15" y="671.5" ></text>
+</g>
+<g >
+<title>std::vformat[abi:cxx11] (455,750,000 samples, 0.76%)</title><rect x="851.7" y="693" width="9.0" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="854.71" y="703.5" ></text>
+</g>
+<g >
+<title>entry_SYSCALL_64_after_hwframe (28,250,000 samples, 0.05%)</title><rect x="12.5" y="821" width="0.6" height="15.0" fill="rgb(218,63,15)" rx="2" ry="2" />
+<text  x="15.52" y="831.5" ></text>
+</g>
+<g >
+<title>do_readlinkat (23,500,000 samples, 0.04%)</title><rect x="12.6" y="773" width="0.4" height="15.0" fill="rgb(221,76,18)" rx="2" ry="2" />
+<text  x="15.59" y="783.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::noncopyable::~noncopyable (97,500,000 samples, 0.16%)</title><rect x="458.5" y="645" width="1.9" height="15.0" fill="rgb(208,14,3)" rx="2" ry="2" />
+<text  x="461.45" y="655.5" ></text>
+</g>
+<g >
+<title>std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;::append (6,250,000 samples, 0.01%)</title><rect x="862.5" y="677" width="0.1" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="865.50" y="687.5" ></text>
+</g>
+<g >
+<title>getname_flags.part.0 (17,750,000 samples, 0.03%)</title><rect x="11.8" y="741" width="0.4" height="15.0" fill="rgb(207,10,2)" rx="2" ry="2" />
+<text  x="14.84" y="751.5" ></text>
+</g>
+<g >
+<title>clear_page_erms (4,432,000,000 samples, 7.38%)</title><rect x="957.8" y="725" width="87.0" height="15.0" fill="rgb(229,113,27)" rx="2" ry="2" />
+<text  x="960.76" y="735.5" >clear_page..</text>
+</g>
+<g >
+<title>pthread_mutex_unlock@plt (88,750,000 samples, 0.15%)</title><rect x="567.9" y="597" width="1.7" height="15.0" fill="rgb(247,194,46)" rx="2" ry="2" />
+<text  x="570.85" y="607.5" ></text>
+</g>
+<g >
+<title>kernel_init_free_pages.part.0 (4,458,750,000 samples, 7.42%)</title><rect x="957.2" y="741" width="87.6" height="15.0" fill="rgb(213,40,9)" rx="2" ry="2" />
+<text  x="960.23" y="751.5" >kernel_ini..</text>
+</g>
+<g >
+<title>pthread_mutex_lock@plt (83,250,000 samples, 0.14%)</title><rect x="446.7" y="629" width="1.6" height="15.0" fill="rgb(213,39,9)" rx="2" ry="2" />
+<text  x="449.68" y="639.5" ></text>
+</g>
+<g >
+<title>__alloc_pages (10,250,000 samples, 0.02%)</title><rect x="1051.2" y="741" width="0.2" height="15.0" fill="rgb(233,129,30)" rx="2" ry="2" />
+<text  x="1054.24" y="751.5" ></text>
+</g>
+<g >
+<title>std::__format::_Formatting_scanner&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt;::_M_format_arg (14,250,000 samples, 0.02%)</title><rect x="858.6" y="101" width="0.3" height="15.0" fill="rgb(229,112,26)" rx="2" ry="2" />
+<text  x="861.60" y="111.5" ></text>
+</g>
+<g >
+<title>asm_exc_page_fault (311,000,000 samples, 0.52%)</title><rect x="1183.9" y="853" width="6.1" height="15.0" fill="rgb(225,93,22)" rx="2" ry="2" />
+<text  x="1186.89" y="863.5" ></text>
+</g>
+<g >
+<title>charge_memcg (192,500,000 samples, 0.32%)</title><rect x="1046.1" y="757" width="3.8" height="15.0" fill="rgb(242,170,40)" rx="2" ry="2" />
+<text  x="1049.11" y="767.5" ></text>
+</g>
+<g >
+<title>operator new (85,750,000 samples, 0.14%)</title><rect x="633.4" y="677" width="1.6" height="15.0" fill="rgb(216,51,12)" rx="2" ry="2" />
+<text  x="636.36" y="687.5" ></text>
+</g>
+<g >
+<title>std::__format::__formatter_int&lt;char&gt;::format&lt;long long, std::__format::_Sink_iter&lt;char&gt; &gt; (11,750,000 samples, 0.02%)</title><rect x="857.3" y="69" width="0.3" height="15.0" fill="rgb(239,157,37)" rx="2" ry="2" />
+<text  x="860.34" y="79.5" ></text>
+</g>
+<g >
+<title>nd_jump_root (11,000,000 samples, 0.02%)</title><rect x="11.5" y="693" width="0.2" height="15.0" fill="rgb(241,168,40)" rx="2" ry="2" />
+<text  x="14.45" y="703.5" ></text>
+</g>
+<g >
+<title>std::__format::__formatter_chrono&lt;char&gt;::_M_F&lt;std::chrono::time_point&lt;std::chrono::_V2::system_clock, std::chrono::duration&lt;long, std::ratio&lt;1l, 1000000000l&gt; &gt; &gt;, std::basic_format_context&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt; &gt; (67,250,000 samples, 0.11%)</title><rect x="855.1" y="245" width="1.3" height="15.0" fill="rgb(209,21,5)" rx="2" ry="2" />
+<text  x="858.10" y="255.5" ></text>
+</g>
+<g >
+<title>std::visit_format_arg&lt;std::__format::_Formatting_scanner&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt;::_M_format_arg (253,500,000 samples, 0.42%)</title><rect x="854.8" y="341" width="4.9" height="15.0" fill="rgb(244,183,43)" rx="2" ry="2" />
+<text  x="857.75" y="351.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::op_queue&lt;boost::asio::detail::scheduler_operation&gt;::push (131,250,000 samples, 0.22%)</title><rect x="351.7" y="661" width="2.5" height="15.0" fill="rgb(216,50,12)" rx="2" ry="2" />
+<text  x="354.67" y="671.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::recycling_allocator&lt;boost::asio::detail::executor_op&lt;boost::asio::detail::binder0&lt;DOCTEST_ANON_FUNC_2 (321,500,000 samples, 0.54%)</title><rect x="354.2" y="661" width="6.4" height="15.0" fill="rgb(220,72,17)" rx="2" ry="2" />
+<text  x="357.25" y="671.5" ></text>
+</g>
+<g >
+<title>std::__addressof&lt;std::allocator&lt;void&gt; const&gt; (101,750,000 samples, 0.17%)</title><rect x="629.2" y="661" width="2.0" height="15.0" fill="rgb(237,151,36)" rx="2" ry="2" />
+<text  x="632.19" y="671.5" ></text>
+</g>
+<g >
+<title>free_unref_page_list (184,750,000 samples, 0.31%)</title><rect x="1097.7" y="645" width="3.6" height="15.0" fill="rgb(221,77,18)" rx="2" ry="2" />
+<text  x="1100.71" y="655.5" ></text>
+</g>
+<g >
+<title>__mod_memcg_lruvec_state (12,500,000 samples, 0.02%)</title><rect x="1089.4" y="741" width="0.3" height="15.0" fill="rgb(247,195,46)" rx="2" ry="2" />
+<text  x="1092.43" y="751.5" ></text>
+</g>
+<g >
+<title>kmem_cache_alloc (8,750,000 samples, 0.01%)</title><rect x="11.9" y="725" width="0.1" height="15.0" fill="rgb(225,95,22)" rx="2" ry="2" />
+<text  x="14.87" y="735.5" ></text>
+</g>
+<g >
+<title>std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;::append (6,750,000 samples, 0.01%)</title><rect x="854.5" y="373" width="0.1" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="857.49" y="383.5" ></text>
+</g>
+<g >
+<title>std::vformat[abi:cxx11] (106,500,000 samples, 0.18%)</title><rect x="862.3" y="725" width="2.1" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="865.32" y="735.5" ></text>
+</g>
+<g >
+<title>walk_component (6,750,000 samples, 0.01%)</title><rect x="11.7" y="709" width="0.1" height="15.0" fill="rgb(241,167,40)" rx="2" ry="2" />
+<text  x="14.68" y="719.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::op_queue_access::next&lt;boost::asio::detail::scheduler_operation, boost::asio::detail::scheduler_operation&gt; (371,000,000 samples, 0.62%)</title><rect x="469.8" y="629" width="7.3" height="15.0" fill="rgb(231,121,29)" rx="2" ry="2" />
+<text  x="472.82" y="639.5" ></text>
+</g>
+<g >
+<title>std::__format::_Seq_sink&lt;std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt; &gt;::get (7,250,000 samples, 0.01%)</title><rect x="851.7" y="677" width="0.2" height="15.0" fill="rgb(242,170,40)" rx="2" ry="2" />
+<text  x="854.75" y="687.5" ></text>
+</g>
+<g >
+<title>__brk (187,250,000 samples, 0.31%)</title><rect x="25.6" y="853" width="3.7" height="15.0" fill="rgb(225,94,22)" rx="2" ry="2" />
+<text  x="28.63" y="863.5" ></text>
+</g>
+<g >
+<title>do_output_char (6,750,000 samples, 0.01%)</title><rect x="16.3" y="725" width="0.2" height="15.0" fill="rgb(247,197,47)" rx="2" ry="2" />
+<text  x="19.34" y="735.5" ></text>
+</g>
+<g >
+<title>std::__format::_Formatting_scanner&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt;::_M_format_arg (21,500,000 samples, 0.04%)</title><rect x="863.6" y="661" width="0.4" height="15.0" fill="rgb(229,112,26)" rx="2" ry="2" />
+<text  x="866.60" y="671.5" ></text>
+</g>
+<g >
+<title>std::basic_format_arg&lt;std::basic_format_context&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt; &gt;::handle::_S_format&lt;std::chrono::zoned_time&lt;std::chrono::duration&lt;long, std::ratio&lt;1l, 1000000000l&gt; &gt;, std::chrono::time_zone const*&gt; const&gt; (379,250,000 samples, 0.63%)</title><rect x="852.7" y="565" width="7.5" height="15.0" fill="rgb(221,76,18)" rx="2" ry="2" />
+<text  x="855.71" y="575.5" ></text>
+</g>
+<g >
+<title>malloc (4,100,000,000 samples, 6.82%)</title><rect x="1101.6" y="869" width="80.5" height="15.0" fill="rgb(230,119,28)" rx="2" ry="2" />
+<text  x="1104.61" y="879.5" >malloc</text>
+</g>
+<g >
+<title>std::__format::_Scanner&lt;char&gt;::_M_scan (69,250,000 samples, 0.12%)</title><rect x="862.9" y="693" width="1.4" height="15.0" fill="rgb(224,89,21)" rx="2" ry="2" />
+<text  x="865.92" y="703.5" ></text>
+</g>
+<g >
+<title>std::__format::_Scanner&lt;char&gt;::_M_scan (32,750,000 samples, 0.05%)</title><rect x="855.8" y="181" width="0.6" height="15.0" fill="rgb(224,89,21)" rx="2" ry="2" />
+<text  x="858.76" y="191.5" ></text>
+</g>
+<g >
+<title>std::chrono::hh_mm_ss&lt;std::chrono::duration&lt;long, std::ratio&lt;1l, 1000000000l&gt; &gt; &gt;::hh_mm_ss (19,750,000 samples, 0.03%)</title><rect x="857.7" y="213" width="0.4" height="15.0" fill="rgb(240,163,39)" rx="2" ry="2" />
+<text  x="860.69" y="223.5" ></text>
+</g>
+<g >
+<title>filename_lookup (46,250,000 samples, 0.08%)</title><rect x="10.9" y="741" width="0.9" height="15.0" fill="rgb(216,52,12)" rx="2" ry="2" />
+<text  x="13.91" y="751.5" ></text>
+</g>
+<g >
+<title>path_init (12,000,000 samples, 0.02%)</title><rect x="11.4" y="709" width="0.3" height="15.0" fill="rgb(212,32,7)" rx="2" ry="2" />
+<text  x="14.43" y="719.5" ></text>
+</g>
+<g >
+<title>perf_iterate_sb (76,500,000 samples, 0.13%)</title><rect x="26.4" y="757" width="1.5" height="15.0" fill="rgb(244,179,42)" rx="2" ry="2" />
+<text  x="29.38" y="767.5" ></text>
+</g>
+<g >
+<title>std::char_traits&lt;char&gt;::copy (7,750,000 samples, 0.01%)</title><rect x="862.6" y="597" width="0.2" height="15.0" fill="rgb(231,121,29)" rx="2" ry="2" />
+<text  x="865.65" y="607.5" ></text>
+</g>
+<g >
+<title>__fdget_pos (10,750,000 samples, 0.02%)</title><rect x="15.2" y="789" width="0.2" height="15.0" fill="rgb(216,55,13)" rx="2" ry="2" />
+<text  x="18.15" y="799.5" ></text>
+</g>
+<g >
+<title>std::formatter&lt;std::chrono::zoned_time&lt;std::chrono::duration&lt;long, std::ratio&lt;1l, 1000000000l&gt; &gt;, std::chrono::time_zone const*&gt;, char&gt;::format&lt;std::basic_format_context&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt; &gt; (374,250,000 samples, 0.62%)</title><rect x="852.8" y="549" width="7.3" height="15.0" fill="rgb(228,107,25)" rx="2" ry="2" />
+<text  x="855.80" y="559.5" ></text>
+</g>
+<g >
+<title>vfs_readlink (8,500,000 samples, 0.01%)</title><rect x="12.9" y="757" width="0.1" height="15.0" fill="rgb(246,191,45)" rx="2" ry="2" />
+<text  x="15.88" y="767.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::scheduler::work_started (1,969,500,000 samples, 3.28%)</title><rect x="575.9" y="645" width="38.6" height="15.0" fill="rgb(216,52,12)" rx="2" ry="2" />
+<text  x="578.86" y="655.5" >boo..</text>
+</g>
+<g >
+<title>__d_lookup_rcu (6,500,000 samples, 0.01%)</title><rect x="11.7" y="677" width="0.1" height="15.0" fill="rgb(228,109,26)" rx="2" ry="2" />
+<text  x="14.68" y="687.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::call_stack&lt;boost::asio::detail::thread_context, boost::asio::detail::thread_info_base&gt;::top (116,250,000 samples, 0.19%)</title><rect x="247.4" y="629" width="2.3" height="15.0" fill="rgb(232,128,30)" rx="2" ry="2" />
+<text  x="250.40" y="639.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::initiate_post_with_executor&lt;boost::asio::thread_pool::basic_executor_type&lt;std::allocator&lt;void&gt;, 0u&gt; &gt;::~initiate_post_with_executor (486,250,000 samples, 0.81%)</title><rect x="818.2" y="741" width="9.6" height="15.0" fill="rgb(206,8,2)" rx="2" ry="2" />
+<text  x="821.23" y="751.5" ></text>
+</g>
+<g >
+<title>free_swap_and_cache (6,750,000 samples, 0.01%)</title><rect x="1092.7" y="677" width="0.1" height="15.0" fill="rgb(247,194,46)" rx="2" ry="2" />
+<text  x="1095.69" y="687.5" ></text>
+</g>
+<g >
+<title>std::basic_format_arg&lt;std::basic_format_context&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt; &gt;::_M_visit&lt;std::__format::_Formatting_scanner&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt;::_M_format_arg (253,500,000 samples, 0.42%)</title><rect x="854.8" y="325" width="4.9" height="15.0" fill="rgb(251,213,51)" rx="2" ry="2" />
+<text  x="857.75" y="335.5" ></text>
+</g>
+<g >
+<title>std::__format::_Seq_sink&lt;std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt; &gt;::_M_overflow (6,000,000 samples, 0.01%)</title><rect x="851.8" y="661" width="0.1" height="15.0" fill="rgb(223,87,20)" rx="2" ry="2" />
+<text  x="854.77" y="671.5" ></text>
+</g>
+<g >
+<title>[unknown] (253,750,000 samples, 0.42%)</title><rect x="10.1" y="853" width="4.9" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="13.05" y="863.5" ></text>
+</g>
+<g >
+<title>std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;::append (5,250,000 samples, 0.01%)</title><rect x="851.8" y="645" width="0.1" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="854.78" y="655.5" ></text>
+</g>
+<g >
+<title>std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;::_M_construct (8,750,000 samples, 0.01%)</title><rect x="14.6" y="821" width="0.2" height="15.0" fill="rgb(214,43,10)" rx="2" ry="2" />
+<text  x="17.61" y="831.5" ></text>
+</g>
+<g >
+<title>std::filesystem::__cxx11::path::_M_split_cmpts (7,000,000 samples, 0.01%)</title><rect x="1182.7" y="853" width="0.2" height="15.0" fill="rgb(206,4,1)" rx="2" ry="2" />
+<text  x="1185.75" y="863.5" ></text>
+</g>
+<g >
+<title>do_brk_flags (136,000,000 samples, 0.23%)</title><rect x="25.9" y="789" width="2.7" height="15.0" fill="rgb(220,73,17)" rx="2" ry="2" />
+<text  x="28.93" y="799.5" ></text>
+</g>
+<g >
+<title>std::vformat[abi:cxx11] (35,250,000 samples, 0.06%)</title><rect x="858.3" y="213" width="0.7" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="861.27" y="223.5" ></text>
+</g>
+<g >
+<title>readlink_copy (8,000,000 samples, 0.01%)</title><rect x="12.9" y="741" width="0.1" height="15.0" fill="rgb(248,201,48)" rx="2" ry="2" />
+<text  x="15.89" y="751.5" ></text>
+</g>
+<g >
+<title>do_syscall_64 (181,500,000 samples, 0.30%)</title><rect x="25.7" y="821" width="3.6" height="15.0" fill="rgb(209,20,4)" rx="2" ry="2" />
+<text  x="28.74" y="831.5" ></text>
+</g>
+<g >
+<title>std::visit_format_arg&lt;std::__format::_Formatting_scanner&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt;::_M_format_arg (20,500,000 samples, 0.03%)</title><rect x="863.6" y="645" width="0.4" height="15.0" fill="rgb(244,183,43)" rx="2" ry="2" />
+<text  x="866.61" y="655.5" ></text>
+</g>
+<g >
+<title>charge_memcg (9,750,000 samples, 0.02%)</title><rect x="1188.5" y="757" width="0.2" height="15.0" fill="rgb(242,170,40)" rx="2" ry="2" />
+<text  x="1191.49" y="767.5" ></text>
+</g>
+<g >
+<title>std::__format::_Spec&lt;char&gt;::_S_parse_width_or_precision (5,500,000 samples, 0.01%)</title><rect x="856.0" y="37" width="0.1" height="15.0" fill="rgb(246,190,45)" rx="2" ry="2" />
+<text  x="859.03" y="47.5" ></text>
+</g>
+<g >
+<title>std::chrono::zoned_time&lt;std::chrono::duration&lt;long, std::ratio&lt;1l, 1000000000l&gt; &gt;, std::chrono::time_zone const*&gt;::get_info (29,750,000 samples, 0.05%)</title><rect x="852.8" y="533" width="0.6" height="15.0" fill="rgb(245,187,44)" rx="2" ry="2" />
+<text  x="855.83" y="543.5" ></text>
+</g>
+<g >
+<title>_int_malloc (11,401,500,000 samples, 18.97%)</title><rect x="867.7" y="869" width="223.9" height="15.0" fill="rgb(215,47,11)" rx="2" ry="2" />
+<text  x="870.69" y="879.5" >_int_malloc</text>
+</g>
+<g >
+<title>std::basic_format_arg&lt;std::basic_format_context&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt; &gt;::_M_visit&lt;std::__format::_Formatting_scanner&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt;::_M_format_arg (24,250,000 samples, 0.04%)</title><rect x="857.1" y="117" width="0.5" height="15.0" fill="rgb(251,213,51)" rx="2" ry="2" />
+<text  x="860.11" y="127.5" ></text>
+</g>
+<g >
+<title>boost::asio::thread_pool::basic_executor_type&lt;std::allocator&lt;void&gt;, 0u&gt;::basic_executor_type (249,500,000 samples, 0.42%)</title><rect x="827.8" y="741" width="4.9" height="15.0" fill="rgb(242,171,41)" rx="2" ry="2" />
+<text  x="830.78" y="751.5" ></text>
+</g>
+<g >
+<title>std::formatter&lt;std::chrono::time_point&lt;std::chrono::_V2::system_clock, std::chrono::duration&lt;long, std::ratio&lt;1l, 1000000000l&gt; &gt; &gt;, char&gt;::format&lt;std::basic_format_context&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt; &gt; (226,250,000 samples, 0.38%)</title><rect x="854.8" y="277" width="4.4" height="15.0" fill="rgb(246,192,46)" rx="2" ry="2" />
+<text  x="857.79" y="287.5" ></text>
+</g>
+<g >
+<title>__pagevec_lru_add (225,250,000 samples, 0.37%)</title><rect x="1084.3" y="757" width="4.4" height="15.0" fill="rgb(228,106,25)" rx="2" ry="2" />
+<text  x="1087.31" y="767.5" ></text>
+</g>
+<g >
+<title>std::chrono::tzdb::current_zone (5,500,000 samples, 0.01%)</title><rect x="29.8" y="853" width="0.1" height="15.0" fill="rgb(205,3,0)" rx="2" ry="2" />
+<text  x="32.77" y="863.5" ></text>
+</g>
+<g >
+<title>___perf_sw_event (25,750,000 samples, 0.04%)</title><rect x="939.4" y="789" width="0.5" height="15.0" fill="rgb(235,138,33)" rx="2" ry="2" />
+<text  x="942.41" y="799.5" ></text>
+</g>
+<g >
+<title>std::chrono::zoned_time&lt;std::chrono::duration&lt;long, std::ratio&lt;1l, 1000000000l&gt; &gt;, std::chrono::time_zone const*&gt;::get_local_time (9,500,000 samples, 0.02%)</title><rect x="853.4" y="533" width="0.2" height="15.0" fill="rgb(234,134,32)" rx="2" ry="2" />
+<text  x="856.41" y="543.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::keyword_tss_ptr&lt;boost::asio::detail::call_stack&lt;boost::asio::detail::thread_context, boost::asio::detail::thread_info_base&gt;::context&gt;::operator boost::asio::detail::call_stack&lt;boost::asio::detail::thread_context, boost::asio::detail::thread_info_base&gt;::context* (126,250,000 samples, 0.21%)</title><rect x="253.4" y="613" width="2.5" height="15.0" fill="rgb(232,128,30)" rx="2" ry="2" />
+<text  x="256.42" y="623.5" ></text>
+</g>
+<g >
+<title>std::basic_format_args&lt;std::basic_format_context&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt; &gt;::basic_format_args&lt;std::basic_format_arg&lt;std::basic_format_context&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt; &gt;::handle, char const*, unsigned int, std::basic_string_view&lt;char, std::char_traits&lt;char&gt; &gt;, std::basic_string_view&lt;char, std::char_traits&lt;char&gt; &gt; &gt; (5,250,000 samples, 0.01%)</title><rect x="851.6" y="693" width="0.1" height="15.0" fill="rgb(245,185,44)" rx="2" ry="2" />
+<text  x="854.61" y="703.5" ></text>
+</g>
+<g >
+<title>__alloc_pages (5,042,250,000 samples, 8.39%)</title><rect x="945.8" y="773" width="99.0" height="15.0" fill="rgb(233,129,30)" rx="2" ry="2" />
+<text  x="948.82" y="783.5" >__alloc_pages</text>
+</g>
+<g >
+<title>std::__format::_Scanner&lt;char&gt;::_M_on_replacement_field (22,750,000 samples, 0.04%)</title><rect x="863.6" y="677" width="0.4" height="15.0" fill="rgb(210,25,6)" rx="2" ry="2" />
+<text  x="866.58" y="687.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::conditionally_enabled_mutex::unlock (2,364,000,000 samples, 3.93%)</title><rect x="523.2" y="613" width="46.4" height="15.0" fill="rgb(246,190,45)" rx="2" ry="2" />
+<text  x="526.17" y="623.5" >boos..</text>
+</g>
+<g >
+<title>__mod_lruvec_page_state (36,750,000 samples, 0.06%)</title><rect x="1089.0" y="757" width="0.7" height="15.0" fill="rgb(245,185,44)" rx="2" ry="2" />
+<text  x="1091.96" y="767.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::completion_handler_async_result&lt;DOCTEST_ANON_FUNC_2 (293,750,000 samples, 0.49%)</title><rect x="798.6" y="741" width="5.7" height="15.0" fill="rgb(205,3,0)" rx="2" ry="2" />
+<text  x="801.57" y="751.5" ></text>
+</g>
+<g >
+<title>std::__format::__do_vformat_to&lt;std::__format::_Sink_iter&lt;char&gt;, char, std::basic_format_context&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt; &gt; (445,250,000 samples, 0.74%)</title><rect x="851.9" y="677" width="8.7" height="15.0" fill="rgb(233,129,31)" rx="2" ry="2" />
+<text  x="854.90" y="687.5" ></text>
+</g>
+<g >
+<title>link_path_walk.part.0.constprop.0 (21,500,000 samples, 0.04%)</title><rect x="11.0" y="709" width="0.4" height="15.0" fill="rgb(248,199,47)" rx="2" ry="2" />
+<text  x="14.01" y="719.5" ></text>
+</g>
+<g >
+<title>boost_asio_require_fn::impl::operator (1,274,000,000 samples, 2.12%)</title><rect x="741.3" y="693" width="25.1" height="15.0" fill="rgb(225,95,22)" rx="2" ry="2" />
+<text  x="744.34" y="703.5" >b..</text>
+</g>
+<g >
+<title>std::__format::_Scanner&lt;char&gt;::_M_on_replacement_field (27,000,000 samples, 0.04%)</title><rect x="857.1" y="165" width="0.5" height="15.0" fill="rgb(210,25,6)" rx="2" ry="2" />
+<text  x="860.07" y="175.5" ></text>
+</g>
+<g >
+<title>_IO_file_xsputn@@GLIBC_2.2.5 (5,750,000 samples, 0.01%)</title><rect x="30.4" y="869" width="0.1" height="15.0" fill="rgb(242,171,41)" rx="2" ry="2" />
+<text  x="33.37" y="879.5" ></text>
+</g>
+<g >
+<title>std::visit_format_arg&lt;std::__format::_Formatting_scanner&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt;::_M_format_arg (411,500,000 samples, 0.68%)</title><rect x="852.4" y="613" width="8.1" height="15.0" fill="rgb(244,183,43)" rx="2" ry="2" />
+<text  x="855.37" y="623.5" ></text>
+</g>
+<g >
+<title>__check_object_size (6,250,000 samples, 0.01%)</title><rect x="12.1" y="709" width="0.1" height="15.0" fill="rgb(226,98,23)" rx="2" ry="2" />
+<text  x="15.06" y="719.5" ></text>
+</g>
+<g >
+<title>boost::asio::thread_pool::join (6,500,000 samples, 0.01%)</title><rect x="850.3" y="757" width="0.1" height="15.0" fill="rgb(248,202,48)" rx="2" ry="2" />
+<text  x="853.26" y="767.5" ></text>
+</g>
+<g >
+<title>release_pages (31,750,000 samples, 0.05%)</title><rect x="1088.1" y="741" width="0.6" height="15.0" fill="rgb(228,106,25)" rx="2" ry="2" />
+<text  x="1091.11" y="751.5" ></text>
+</g>
+<g >
+<title>std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;::append (8,250,000 samples, 0.01%)</title><rect x="860.7" y="693" width="0.2" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="863.70" y="703.5" ></text>
+</g>
+<g >
+<title>perf_iterate_ctx (73,250,000 samples, 0.12%)</title><rect x="26.4" y="741" width="1.5" height="15.0" fill="rgb(205,4,0)" rx="2" ry="2" />
+<text  x="29.45" y="751.5" ></text>
+</g>
+<g >
+<title>std::__cxx11::basic_stringbuf&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;::overflow (9,500,000 samples, 0.02%)</title><rect x="1182.4" y="869" width="0.2" height="15.0" fill="rgb(221,75,18)" rx="2" ry="2" />
+<text  x="1185.43" y="879.5" ></text>
+</g>
+<g >
+<title>get_page_from_freelist (4,937,250,000 samples, 8.22%)</title><rect x="947.8" y="757" width="97.0" height="15.0" fill="rgb(252,218,52)" rx="2" ry="2" />
+<text  x="950.83" y="767.5" >get_page_fr..</text>
+</g>
+<g >
+<title>std::__format::_Formatting_scanner&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt;::_M_format_arg (20,500,000 samples, 0.03%)</title><rect x="855.9" y="149" width="0.4" height="15.0" fill="rgb(229,112,26)" rx="2" ry="2" />
+<text  x="858.88" y="159.5" ></text>
+</g>
+<g >
+<title>__memchr_avx2 (7,250,000 samples, 0.01%)</title><rect x="864.1" y="661" width="0.1" height="15.0" fill="rgb(226,100,24)" rx="2" ry="2" />
+<text  x="867.10" y="671.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::noncopyable::noncopyable (185,750,000 samples, 0.31%)</title><rect x="454.8" y="645" width="3.7" height="15.0" fill="rgb(222,78,18)" rx="2" ry="2" />
+<text  x="457.81" y="655.5" ></text>
+</g>
+<g >
+<title>lookup_fast (6,500,000 samples, 0.01%)</title><rect x="11.7" y="693" width="0.1" height="15.0" fill="rgb(219,68,16)" rx="2" ry="2" />
+<text  x="14.68" y="703.5" ></text>
+</g>
+<g >
+<title>std::__format::_Formatting_scanner&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt;::_M_format_arg (415,250,000 samples, 0.69%)</title><rect x="852.3" y="629" width="8.2" height="15.0" fill="rgb(229,112,26)" rx="2" ry="2" />
+<text  x="855.30" y="639.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::initiate_post_with_executor&lt;boost::asio::thread_pool::basic_executor_type&lt;std::allocator&lt;void&gt;, 0u&gt; &gt;::~initiate_post_with_executor (162,250,000 samples, 0.27%)</title><rect x="67.1" y="757" width="3.2" height="15.0" fill="rgb(206,8,2)" rx="2" ry="2" />
+<text  x="70.11" y="767.5" ></text>
+</g>
+<g >
+<title>__raw_callee_save___pv_queued_spin_unlock (33,250,000 samples, 0.06%)</title><rect x="1051.4" y="773" width="0.7" height="15.0" fill="rgb(248,202,48)" rx="2" ry="2" />
+<text  x="1054.44" y="783.5" ></text>
+</g>
+<g >
+<title>do_shrink_slab (5,750,000 samples, 0.01%)</title><rect x="947.7" y="677" width="0.1" height="15.0" fill="rgb(241,168,40)" rx="2" ry="2" />
+<text  x="950.69" y="687.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::posix_event::maybe_unlock_and_signal_one&lt;boost::asio::detail::conditionally_enabled_mutex::scoped_lock&gt; (300,250,000 samples, 0.50%)</title><rect x="500.4" y="613" width="5.9" height="15.0" fill="rgb(240,164,39)" rx="2" ry="2" />
+<text  x="503.40" y="623.5" ></text>
+</g>
+<g >
+<title>[unknown] (5,250,000 samples, 0.01%)</title><rect x="30.2" y="837" width="0.1" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="33.17" y="847.5" ></text>
+</g>
+<g >
+<title>std::formatter&lt;std::chrono::__detail::__local_time_fmt&lt;std::chrono::duration&lt;long, std::ratio&lt;1l, 1000000000l&gt; &gt; &gt;, char&gt;::format&lt;std::basic_format_context&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt; &gt; (333,500,000 samples, 0.56%)</title><rect x="853.6" y="533" width="6.5" height="15.0" fill="rgb(250,209,50)" rx="2" ry="2" />
+<text  x="856.60" y="543.5" ></text>
+</g>
+<g >
+<title>std::format&lt;long&gt; (38,250,000 samples, 0.06%)</title><rect x="858.2" y="229" width="0.8" height="15.0" fill="rgb(254,228,54)" rx="2" ry="2" />
+<text  x="861.21" y="239.5" ></text>
+</g>
+<g >
+<title>std::chrono::time_zone::name (11,750,000 samples, 0.02%)</title><rect x="14.0" y="837" width="0.3" height="15.0" fill="rgb(224,91,21)" rx="2" ry="2" />
+<text  x="17.02" y="847.5" ></text>
+</g>
+<g >
+<title>boost_asio_prefer_fn::impl::operator (4,635,000,000 samples, 7.71%)</title><rect x="650.3" y="693" width="91.0" height="15.0" fill="rgb(207,11,2)" rx="2" ry="2" />
+<text  x="653.33" y="703.5" >boost_asio..</text>
+</g>
+<g >
+<title>uncharge_page (15,250,000 samples, 0.03%)</title><rect x="1097.4" y="629" width="0.3" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="1100.42" y="639.5" ></text>
+</g>
+<g >
+<title>std::__format::_Formatting_scanner&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt;::_M_format_arg (250,500,000 samples, 0.42%)</title><rect x="854.8" y="309" width="4.9" height="15.0" fill="rgb(229,112,26)" rx="2" ry="2" />
+<text  x="857.77" y="319.5" ></text>
+</g>
+<g >
+<title>__mod_lruvec_state (15,250,000 samples, 0.03%)</title><rect x="1089.1" y="741" width="0.3" height="15.0" fill="rgb(226,100,24)" rx="2" ry="2" />
+<text  x="1092.13" y="751.5" ></text>
+</g>
+<g >
+<title>lock_page_memcg (9,250,000 samples, 0.02%)</title><rect x="1094.3" y="661" width="0.2" height="15.0" fill="rgb(207,10,2)" rx="2" ry="2" />
+<text  x="1097.28" y="671.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::conditionally_enabled_mutex::scoped_lock::~scoped_lock (232,250,000 samples, 0.39%)</title><rect x="450.2" y="645" width="4.6" height="15.0" fill="rgb(233,132,31)" rx="2" ry="2" />
+<text  x="453.25" y="655.5" ></text>
+</g>
+<g >
+<title>__memcmp_avx2_movbe (10,000,000 samples, 0.02%)</title><rect x="13.1" y="837" width="0.2" height="15.0" fill="rgb(224,91,21)" rx="2" ry="2" />
+<text  x="16.07" y="847.5" ></text>
+</g>
+<g >
+<title>std::chrono::time_zone::to_local&lt;std::chrono::duration&lt;long, std::ratio&lt;1l, 1000000000l&gt; &gt; &gt; (8,250,000 samples, 0.01%)</title><rect x="853.4" y="517" width="0.2" height="15.0" fill="rgb(245,188,45)" rx="2" ry="2" />
+<text  x="856.44" y="527.5" ></text>
+</g>
+<g >
+<title>__handle_mm_fault (246,250,000 samples, 0.41%)</title><rect x="1185.1" y="789" width="4.8" height="15.0" fill="rgb(207,9,2)" rx="2" ry="2" />
+<text  x="1188.05" y="799.5" ></text>
+</g>
+<g >
+<title>boost::asio::thread_pool::basic_executor_type&lt;std::allocator&lt;void&gt;, 0u&gt;::do_execute&lt;boost::asio::detail::binder0&lt;DOCTEST_ANON_FUNC_2 (146,750,000 samples, 0.24%)</title><rect x="149.5" y="693" width="2.9" height="15.0" fill="rgb(217,55,13)" rx="2" ry="2" />
+<text  x="152.47" y="703.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::executor_op&lt;boost::asio::detail::binder0&lt;DOCTEST_ANON_FUNC_2 (478,250,000 samples, 0.80%)</title><rect x="158.3" y="677" width="9.4" height="15.0" fill="rgb(254,226,54)" rx="2" ry="2" />
+<text  x="161.29" y="687.5" ></text>
+</g>
+<g >
+<title>try_to_free_pages (13,750,000 samples, 0.02%)</title><rect x="947.5" y="741" width="0.3" height="15.0" fill="rgb(227,104,24)" rx="2" ry="2" />
+<text  x="950.54" y="751.5" ></text>
+</g>
+<g >
+<title>std::format&lt;std::chrono::zoned_time&lt;std::chrono::duration&lt;long, std::ratio&lt;1l, 1000000000l&gt; &gt;, std::chrono::time_zone const*&gt;&amp;, char const*, unsigned int, std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;, std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;&amp;&gt; (468,250,000 samples, 0.78%)</title><rect x="851.5" y="709" width="9.2" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="854.46" y="719.5" ></text>
+</g>
+<g >
+<title>std::__addressof&lt;std::allocator&lt;void&gt; const&gt; (81,750,000 samples, 0.14%)</title><rect x="631.8" y="645" width="1.6" height="15.0" fill="rgb(237,151,36)" rx="2" ry="2" />
+<text  x="634.76" y="655.5" ></text>
+</g>
+<g >
+<title>lru_cache_add (253,500,000 samples, 0.42%)</title><rect x="1083.8" y="773" width="4.9" height="15.0" fill="rgb(247,196,47)" rx="2" ry="2" />
+<text  x="1086.76" y="783.5" ></text>
+</g>
+<g >
+<title>__mod_node_page_state (10,000,000 samples, 0.02%)</title><rect x="1093.9" y="629" width="0.2" height="15.0" fill="rgb(213,38,9)" rx="2" ry="2" />
+<text  x="1096.90" y="639.5" ></text>
+</g>
+<g >
+<title>n_tty_write (472,500,000 samples, 0.79%)</title><rect x="16.0" y="741" width="9.3" height="15.0" fill="rgb(210,23,5)" rx="2" ry="2" />
+<text  x="19.03" y="751.5" ></text>
+</g>
+<g >
+<title>__do_sys_newfstatat (89,000,000 samples, 0.15%)</title><rect x="10.5" y="789" width="1.8" height="15.0" fill="rgb(243,177,42)" rx="2" ry="2" />
+<text  x="13.52" y="799.5" ></text>
+</g>
+<g >
+<title>pte_alloc_one (13,750,000 samples, 0.02%)</title><rect x="1051.2" y="757" width="0.2" height="15.0" fill="rgb(252,217,51)" rx="2" ry="2" />
+<text  x="1054.17" y="767.5" ></text>
+</g>
+<g >
+<title>std::__format::__formatter_int&lt;char&gt;::_M_do_parse (13,000,000 samples, 0.02%)</title><rect x="855.9" y="69" width="0.3" height="15.0" fill="rgb(251,214,51)" rx="2" ry="2" />
+<text  x="858.92" y="79.5" ></text>
+</g>
+<g >
+<title>exc_page_fault (9,321,000,000 samples, 15.51%)</title><rect x="908.5" y="837" width="183.1" height="15.0" fill="rgb(212,35,8)" rx="2" ry="2" />
+<text  x="911.52" y="847.5" >exc_page_fault</text>
+</g>
+<g >
+<title>std::formatter&lt;std::chrono::time_point&lt;std::chrono::_V2::system_clock, std::chrono::duration&lt;long, std::ratio&lt;1l, 1000000000l&gt; &gt; &gt;, char&gt;::parse&lt;std::basic_format_parse_context&lt;char&gt; &gt; (20,500,000 samples, 0.03%)</title><rect x="859.3" y="277" width="0.4" height="15.0" fill="rgb(232,125,30)" rx="2" ry="2" />
+<text  x="862.27" y="287.5" ></text>
+</g>
+<g >
+<title>minilog::log_warn&lt;int&gt; (716,750,000 samples, 1.19%)</title><rect x="850.4" y="757" width="14.1" height="15.0" fill="rgb(250,208,49)" rx="2" ry="2" />
+<text  x="853.38" y="767.5" ></text>
+</g>
+<g >
+<title>boost_asio_prefer_fn::impl::operator (161,500,000 samples, 0.27%)</title><rect x="790.0" y="709" width="3.1" height="15.0" fill="rgb(207,11,2)" rx="2" ry="2" />
+<text  x="792.97" y="719.5" ></text>
+</g>
+<g >
+<title>vfs_write (514,750,000 samples, 0.86%)</title><rect x="15.4" y="789" width="10.1" height="15.0" fill="rgb(250,209,50)" rx="2" ry="2" />
+<text  x="18.37" y="799.5" ></text>
+</g>
+<g >
+<title>boost::asio::thread_pool::basic_executor_type&lt;std::allocator&lt;void&gt;, 0u&gt;::require (187,250,000 samples, 0.31%)</title><rect x="638.6" y="693" width="3.7" height="15.0" fill="rgb(233,130,31)" rx="2" ry="2" />
+<text  x="641.62" y="703.5" ></text>
+</g>
+<g >
+<title>std::addressof&lt;std::allocator&lt;void&gt; const&gt; (111,000,000 samples, 0.18%)</title><rect x="631.2" y="661" width="2.2" height="15.0" fill="rgb(215,47,11)" rx="2" ry="2" />
+<text  x="634.18" y="671.5" ></text>
+</g>
+<g >
+<title>boost::asio::async_initiate&lt;DOCTEST_ANON_FUNC_2 (388,500,000 samples, 0.65%)</title><rect x="56.3" y="757" width="7.6" height="15.0" fill="rgb(225,93,22)" rx="2" ry="2" />
+<text  x="59.31" y="767.5" ></text>
+</g>
+<g >
+<title>boost::asio::thread_pool::get_executor (198,500,000 samples, 0.33%)</title><rect x="846.4" y="757" width="3.9" height="15.0" fill="rgb(230,117,28)" rx="2" ry="2" />
+<text  x="849.36" y="767.5" ></text>
+</g>
+<g >
+<title>boost::asio::thread_pool::get_executor (379,250,000 samples, 0.63%)</title><rect x="834.5" y="741" width="7.4" height="15.0" fill="rgb(230,117,28)" rx="2" ry="2" />
+<text  x="837.48" y="751.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::associated_allocator_impl&lt;DOCTEST_ANON_FUNC_2 (105,250,000 samples, 0.18%)</title><rect x="119.0" y="693" width="2.1" height="15.0" fill="rgb(253,221,53)" rx="2" ry="2" />
+<text  x="122.04" y="703.5" ></text>
+</g>
+<g >
+<title>std::__format::__formatter_chrono&lt;char&gt;::_M_parse&lt;std::basic_format_parse_context&lt;char&gt; &gt; (20,250,000 samples, 0.03%)</title><rect x="859.3" y="261" width="0.4" height="15.0" fill="rgb(249,206,49)" rx="2" ry="2" />
+<text  x="862.27" y="271.5" ></text>
+</g>
+<g >
+<title>std::__format::_Scanner&lt;char&gt;::_M_on_replacement_field (417,250,000 samples, 0.69%)</title><rect x="852.3" y="645" width="8.2" height="15.0" fill="rgb(210,25,6)" rx="2" ry="2" />
+<text  x="855.27" y="655.5" ></text>
+</g>
+<g >
+<title>rcu_read_unlock_strict (52,750,000 samples, 0.09%)</title><rect x="1089.9" y="789" width="1.1" height="15.0" fill="rgb(221,76,18)" rx="2" ry="2" />
+<text  x="1092.92" y="799.5" ></text>
+</g>
+<g >
+<title>[unknown] (7,750,000 samples, 0.01%)</title><rect x="862.6" y="629" width="0.2" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="865.65" y="639.5" ></text>
+</g>
+<g >
+<title>exc_page_fault (311,000,000 samples, 0.52%)</title><rect x="1183.9" y="837" width="6.1" height="15.0" fill="rgb(212,35,8)" rx="2" ry="2" />
+<text  x="1186.89" y="847.5" ></text>
+</g>
+<g >
+<title>std::__format::__formatter_chrono&lt;char&gt;::_S_hms&lt;std::chrono::time_point&lt;std::chrono::_V2::system_clock, std::chrono::duration&lt;long, std::ratio&lt;1l, 1000000000l&gt; &gt; &gt; &gt; (22,000,000 samples, 0.04%)</title><rect x="857.7" y="229" width="0.4" height="15.0" fill="rgb(249,204,48)" rx="2" ry="2" />
+<text  x="860.67" y="239.5" ></text>
+</g>
+<g >
+<title>aligned_alloc@plt (84,000,000 samples, 0.14%)</title><rect x="270.7" y="613" width="1.6" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="273.70" y="623.5" ></text>
+</g>
+<g >
+<title>release_pages (331,500,000 samples, 0.55%)</title><rect x="1094.9" y="661" width="6.5" height="15.0" fill="rgb(228,106,25)" rx="2" ry="2" />
+<text  x="1097.86" y="671.5" ></text>
+</g>
+<g >
+<title>boost::asio::thread_pool::basic_executor_type&lt;std::allocator&lt;void&gt;, 0u&gt;::basic_executor_type (195,000,000 samples, 0.32%)</title><rect x="838.1" y="725" width="3.8" height="15.0" fill="rgb(242,171,41)" rx="2" ry="2" />
+<text  x="841.10" y="735.5" ></text>
+</g>
+<g >
+<title>boost::asio::thread_pool::basic_executor_type&lt;std::allocator&lt;void&gt;, 0u&gt;::~basic_executor_type (225,500,000 samples, 0.38%)</title><rect x="841.9" y="757" width="4.5" height="15.0" fill="rgb(228,107,25)" rx="2" ry="2" />
+<text  x="844.93" y="767.5" ></text>
+</g>
+<g >
+<title>do_user_addr_fault (9,320,750,000 samples, 15.51%)</title><rect x="908.5" y="821" width="183.1" height="15.0" fill="rgb(228,108,25)" rx="2" ry="2" />
+<text  x="911.53" y="831.5" >do_user_addr_fault</text>
+</g>
+<g >
+<title>std::__format::_Formatting_scanner&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt;::_M_format_arg (18,500,000 samples, 0.03%)</title><rect x="855.9" y="101" width="0.4" height="15.0" fill="rgb(229,112,26)" rx="2" ry="2" />
+<text  x="858.92" y="111.5" ></text>
+</g>
+<g >
+<title>get_signal (509,000,000 samples, 0.85%)</title><rect x="1091.6" y="789" width="10.0" height="15.0" fill="rgb(211,28,6)" rx="2" ry="2" />
+<text  x="1094.62" y="799.5" ></text>
+</g>
+<g >
+<title>kthread_blkcg (7,250,000 samples, 0.01%)</title><rect x="1045.6" y="757" width="0.1" height="15.0" fill="rgb(249,203,48)" rx="2" ry="2" />
+<text  x="1048.60" y="767.5" ></text>
+</g>
+<g >
+<title>std::__format::__write&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt; (6,250,000 samples, 0.01%)</title><rect x="852.1" y="629" width="0.1" height="15.0" fill="rgb(211,29,6)" rx="2" ry="2" />
+<text  x="855.06" y="639.5" ></text>
+</g>
+<g >
+<title>std::formatter&lt;char const*, char&gt;::format&lt;std::__format::_Sink_iter&lt;char&gt; &gt; (5,250,000 samples, 0.01%)</title><rect x="860.2" y="565" width="0.1" height="15.0" fill="rgb(213,41,9)" rx="2" ry="2" />
+<text  x="863.17" y="575.5" ></text>
+</g>
+<g >
+<title>strncpy_from_user (7,250,000 samples, 0.01%)</title><rect x="12.0" y="725" width="0.2" height="15.0" fill="rgb(248,198,47)" rx="2" ry="2" />
+<text  x="15.04" y="735.5" ></text>
+</g>
+<g >
+<title>std::basic_format_arg&lt;std::basic_format_context&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt; &gt;::_M_visit&lt;std::__format::_Formatting_scanner&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt;::_M_format_arg (19,750,000 samples, 0.03%)</title><rect x="855.9" y="117" width="0.4" height="15.0" fill="rgb(251,213,51)" rx="2" ry="2" />
+<text  x="858.90" y="127.5" ></text>
+</g>
+<g >
+<title>std::ios_base::~ios_base (10,500,000 samples, 0.02%)</title><rect x="30.0" y="853" width="0.2" height="15.0" fill="rgb(248,201,48)" rx="2" ry="2" />
+<text  x="32.96" y="863.5" ></text>
+</g>
+<g >
+<title>perf_event_mmap (84,500,000 samples, 0.14%)</title><rect x="26.2" y="773" width="1.7" height="15.0" fill="rgb(229,112,26)" rx="2" ry="2" />
+<text  x="29.24" y="783.5" ></text>
+</g>
+<g >
+<title>boost::asio::thread_pool::basic_executor_type&lt;std::allocator&lt;void&gt;, 0u&gt;::basic_executor_type (304,500,000 samples, 0.51%)</title><rect x="714.0" y="645" width="6.0" height="15.0" fill="rgb(242,171,41)" rx="2" ry="2" />
+<text  x="717.01" y="655.5" ></text>
+</g>
+<g >
+<title>std::char_traits&lt;char&gt;::copy (6,000,000 samples, 0.01%)</title><rect x="29.6" y="853" width="0.1" height="15.0" fill="rgb(231,121,29)" rx="2" ry="2" />
+<text  x="32.59" y="863.5" ></text>
+</g>
+<g >
+<title>virtual thunk to std::__cxx11::basic_ostringstream&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;::~basic_ostringstream (5,250,000 samples, 0.01%)</title><rect x="30.2" y="853" width="0.1" height="15.0" fill="rgb(219,65,15)" rx="2" ry="2" />
+<text  x="33.17" y="863.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::scheduler::wake_one_thread_and_unlock (4,658,750,000 samples, 7.75%)</title><rect x="484.4" y="645" width="91.5" height="15.0" fill="rgb(245,184,44)" rx="2" ry="2" />
+<text  x="487.37" y="655.5" >boost::asi..</text>
+</g>
+<g >
+<title>boost::asio::execution::allocator_t&lt;void&gt;::operator (203,500,000 samples, 0.34%)</title><rect x="143.9" y="693" width="4.0" height="15.0" fill="rgb(239,159,38)" rx="2" ry="2" />
+<text  x="146.86" y="703.5" ></text>
+</g>
+<g >
+<title>__mem_cgroup_uncharge_list (19,000,000 samples, 0.03%)</title><rect x="1097.3" y="645" width="0.4" height="15.0" fill="rgb(219,68,16)" rx="2" ry="2" />
+<text  x="1100.34" y="655.5" ></text>
+</g>
+<g >
+<title>new_sync_write (507,750,000 samples, 0.84%)</title><rect x="15.5" y="773" width="10.0" height="15.0" fill="rgb(244,181,43)" rx="2" ry="2" />
+<text  x="18.50" y="783.5" ></text>
+</g>
+<g >
+<title>entry_SYSCALL_64_after_hwframe (181,500,000 samples, 0.30%)</title><rect x="25.7" y="837" width="3.6" height="15.0" fill="rgb(218,63,15)" rx="2" ry="2" />
+<text  x="28.74" y="847.5" ></text>
+</g>
+<g >
+<title>std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;::~basic_string (8,500,000 samples, 0.01%)</title><rect x="862.6" y="693" width="0.2" height="15.0" fill="rgb(248,201,48)" rx="2" ry="2" />
+<text  x="865.64" y="703.5" ></text>
+</g>
+<g >
+<title>std::__format::__formatter_chrono&lt;char&gt;::_M_format&lt;std::chrono::__detail::__local_time_fmt&lt;std::chrono::duration&lt;long, std::ratio&lt;1l, 1000000000l&gt; &gt; &gt;, std::basic_format_context&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt; &gt; (333,250,000 samples, 0.55%)</title><rect x="853.6" y="517" width="6.5" height="15.0" fill="rgb(223,83,19)" rx="2" ry="2" />
+<text  x="856.60" y="527.5" ></text>
+</g>
+<g >
+<title>vfs_statx (83,750,000 samples, 0.14%)</title><rect x="10.6" y="773" width="1.7" height="15.0" fill="rgb(242,172,41)" rx="2" ry="2" />
+<text  x="13.62" y="783.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::conditionally_enabled_mutex::scoped_lock::unlock (98,500,000 samples, 0.16%)</title><rect x="448.3" y="645" width="1.9" height="15.0" fill="rgb(216,52,12)" rx="2" ry="2" />
+<text  x="451.31" y="655.5" ></text>
+</g>
+<g >
+<title>boost::asio::thread_pool::basic_executor_type&lt;std::allocator&lt;void&gt;, 0u&gt;::require (820,250,000 samples, 1.37%)</title><rect x="750.3" y="677" width="16.1" height="15.0" fill="rgb(233,130,31)" rx="2" ry="2" />
+<text  x="753.25" y="687.5" ></text>
+</g>
+<g >
+<title>free_swap_cache (15,750,000 samples, 0.03%)</title><rect x="1094.6" y="645" width="0.3" height="15.0" fill="rgb(244,180,43)" rx="2" ry="2" />
+<text  x="1097.55" y="655.5" ></text>
+</g>
+<g >
+<title>clear_page_erms (50,250,000 samples, 0.08%)</title><rect x="946.6" y="709" width="0.9" height="15.0" fill="rgb(229,113,27)" rx="2" ry="2" />
+<text  x="949.56" y="719.5" ></text>
+</g>
+<g >
+<title>std::__format::__formatter_int&lt;char&gt;::format&lt;int, std::__format::_Sink_iter&lt;char&gt; &gt; (10,500,000 samples, 0.02%)</title><rect x="863.8" y="581" width="0.2" height="15.0" fill="rgb(239,156,37)" rx="2" ry="2" />
+<text  x="866.78" y="591.5" ></text>
+</g>
+<g >
+<title>user_path_at_empty (6,000,000 samples, 0.01%)</title><rect x="12.8" y="757" width="0.1" height="15.0" fill="rgb(226,99,23)" rx="2" ry="2" />
+<text  x="15.76" y="767.5" ></text>
+</g>
+<g >
+<title>std::operator+&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt; (21,750,000 samples, 0.04%)</title><rect x="860.7" y="709" width="0.4" height="15.0" fill="rgb(209,19,4)" rx="2" ry="2" />
+<text  x="863.66" y="719.5" ></text>
+</g>
+<g >
+<title>boost::asio::thread_pool::basic_executor_type&lt;std::allocator&lt;void&gt;, 0u&gt;::~basic_executor_type (409,000,000 samples, 0.68%)</title><rect x="642.3" y="693" width="8.0" height="15.0" fill="rgb(228,107,25)" rx="2" ry="2" />
+<text  x="645.29" y="703.5" ></text>
+</g>
+<g >
+<title>queue_work_on (421,750,000 samples, 0.70%)</title><rect x="17.0" y="709" width="8.3" height="15.0" fill="rgb(248,200,48)" rx="2" ry="2" />
+<text  x="20.02" y="719.5" ></text>
+</g>
+<g >
+<title>std::__format::__do_vformat_to&lt;std::__format::_Sink_iter&lt;char&gt;, char, std::basic_format_context&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt; &gt; (265,000,000 samples, 0.44%)</title><rect x="854.6" y="405" width="5.2" height="15.0" fill="rgb(233,129,31)" rx="2" ry="2" />
+<text  x="857.64" y="415.5" ></text>
+</g>
+<g >
+<title>boost::asio::thread_pool::basic_executor_type&lt;std::allocator&lt;void&gt;, 0u&gt;::basic_executor_type (395,250,000 samples, 0.66%)</title><rect x="733.6" y="645" width="7.7" height="15.0" fill="rgb(242,171,41)" rx="2" ry="2" />
+<text  x="736.58" y="655.5" ></text>
+</g>
+<g >
+<title>std::chrono::operator&lt;&lt; &lt;char, std::char_traits&lt;char&gt;, std::chrono::duration&lt;long, std::ratio&lt;1l, 1000000000l&gt; &gt; &gt; (301,750,000 samples, 0.50%)</title><rect x="854.0" y="469" width="6.0" height="15.0" fill="rgb(251,215,51)" rx="2" ry="2" />
+<text  x="857.03" y="479.5" ></text>
+</g>
+<g >
+<title>boost::asio::thread_pool::basic_executor_type&lt;std::allocator&lt;void&gt;, 0u&gt;::require&lt;std::allocator&lt;void&gt; &gt; (1,087,250,000 samples, 1.81%)</title><rect x="720.0" y="661" width="21.3" height="15.0" fill="rgb(251,213,51)" rx="2" ry="2" />
+<text  x="722.99" y="671.5" >b..</text>
+</g>
+<g >
+<title>boost::asio::detail::posix_mutex::lock (60,250,000 samples, 0.10%)</title><rect x="389.2" y="629" width="1.2" height="15.0" fill="rgb(208,16,3)" rx="2" ry="2" />
+<text  x="392.24" y="639.5" ></text>
+</g>
+<g >
+<title>walk_component (8,750,000 samples, 0.01%)</title><rect x="11.3" y="693" width="0.1" height="15.0" fill="rgb(241,167,40)" rx="2" ry="2" />
+<text  x="14.26" y="703.5" ></text>
+</g>
+<g >
+<title>boost::asio::aligned_new (109,500,000 samples, 0.18%)</title><rect x="245.3" y="629" width="2.1" height="15.0" fill="rgb(218,60,14)" rx="2" ry="2" />
+<text  x="248.25" y="639.5" ></text>
+</g>
+<g >
+<title>std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;::basic_string&lt;std::allocator&lt;char&gt; &gt; (7,500,000 samples, 0.01%)</title><rect x="851.1" y="693" width="0.2" height="15.0" fill="rgb(209,22,5)" rx="2" ry="2" />
+<text  x="854.13" y="703.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::conditionally_enabled_mutex::unlock (95,250,000 samples, 0.16%)</title><rect x="572.1" y="629" width="1.9" height="15.0" fill="rgb(246,190,45)" rx="2" ry="2" />
+<text  x="575.11" y="639.5" ></text>
+</g>
+<g >
+<title>boost::asio::thread_pool::basic_executor_type&lt;std::allocator&lt;void&gt;, 0u&gt;::basic_executor_type (443,750,000 samples, 0.74%)</title><rect x="809.5" y="725" width="8.7" height="15.0" fill="rgb(242,171,41)" rx="2" ry="2" />
+<text  x="812.51" y="735.5" ></text>
+</g>
+<g >
+<title>std::__cxx11::numpunct&lt;char&gt;::decimal_point (6,250,000 samples, 0.01%)</title><rect x="856.6" y="229" width="0.2" height="15.0" fill="rgb(228,105,25)" rx="2" ry="2" />
+<text  x="859.64" y="239.5" ></text>
+</g>
+<g >
+<title>std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;::_M_is_local (7,750,000 samples, 0.01%)</title><rect x="862.6" y="661" width="0.2" height="15.0" fill="rgb(241,168,40)" rx="2" ry="2" />
+<text  x="865.65" y="671.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::thread_context::top_of_thread_call_stack (101,000,000 samples, 0.17%)</title><rect x="344.1" y="645" width="2.0" height="15.0" fill="rgb(237,149,35)" rx="2" ry="2" />
+<text  x="347.07" y="655.5" ></text>
+</g>
+<g >
+<title>[libstdc++.so.6.0.32] (5,500,000 samples, 0.01%)</title><rect x="10.1" y="837" width="0.1" height="15.0" fill="rgb(222,81,19)" rx="2" ry="2" />
+<text  x="13.06" y="847.5" ></text>
+</g>
+<g >
+<title>do_user_addr_fault (311,000,000 samples, 0.52%)</title><rect x="1183.9" y="821" width="6.1" height="15.0" fill="rgb(228,108,25)" rx="2" ry="2" />
+<text  x="1186.89" y="831.5" ></text>
+</g>
+<g >
+<title>std::__format::__do_vformat_to&lt;std::__format::_Sink_iter&lt;char&gt;, char, std::basic_format_context&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt; &gt; (33,500,000 samples, 0.06%)</title><rect x="857.0" y="197" width="0.6" height="15.0" fill="rgb(233,129,31)" rx="2" ry="2" />
+<text  x="859.98" y="207.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::conditionally_enabled_event::maybe_unlock_and_signal_one (200,000,000 samples, 0.33%)</title><rect x="374.6" y="645" width="3.9" height="15.0" fill="rgb(218,63,15)" rx="2" ry="2" />
+<text  x="377.57" y="655.5" ></text>
+</g>
+<g >
+<title>get_mem_cgroup_from_mm (56,500,000 samples, 0.09%)</title><rect x="1049.9" y="757" width="1.1" height="15.0" fill="rgb(218,61,14)" rx="2" ry="2" />
+<text  x="1052.89" y="767.5" ></text>
+</g>
+<g >
+<title>__alloc_pages_slowpath.constprop.0 (67,250,000 samples, 0.11%)</title><rect x="946.5" y="757" width="1.3" height="15.0" fill="rgb(207,11,2)" rx="2" ry="2" />
+<text  x="949.51" y="767.5" ></text>
+</g>
+<g >
+<title>std::use_facet&lt;std::__cxx11::numpunct&lt;char&gt; &gt; (5,250,000 samples, 0.01%)</title><rect x="859.0" y="229" width="0.1" height="15.0" fill="rgb(240,162,38)" rx="2" ry="2" />
+<text  x="861.98" y="239.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::thread_info_base::allocate&lt;boost::asio::detail::thread_info_base::default_tag&gt; (4,043,000,000 samples, 6.73%)</title><rect x="255.9" y="629" width="79.4" height="15.0" fill="rgb(223,83,19)" rx="2" ry="2" />
+<text  x="258.90" y="639.5" >boost::as..</text>
+</g>
+<g >
+<title>boost::asio::async_initiate&lt;DOCTEST_ANON_FUNC_2 (36,360,500,000 samples, 60.51%)</title><rect x="84.6" y="741" width="714.0" height="15.0" fill="rgb(225,93,22)" rx="2" ry="2" />
+<text  x="87.55" y="751.5" >boost::asio::async_initiate&lt;DOCTEST_ANON_FUNC_2</text>
+</g>
+<g >
+<title>std::__format::_Scanner&lt;char&gt;::_M_on_replacement_field (254,500,000 samples, 0.42%)</title><rect x="854.7" y="373" width="5.0" height="15.0" fill="rgb(210,25,6)" rx="2" ry="2" />
+<text  x="857.74" y="383.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::completion_handler_async_result&lt;DOCTEST_ANON_FUNC_2 (36,015,750,000 samples, 59.94%)</title><rect x="89.3" y="725" width="707.3" height="15.0" fill="rgb(205,3,0)" rx="2" ry="2" />
+<text  x="92.31" y="735.5" >boost::asio::detail::completion_handler_async_result&lt;DOCTEST_ANON_FUNC_2</text>
+</g>
+<g >
+<title>std::__format::__formatter_int&lt;char&gt;::format&lt;long long, std::__format::_Sink_iter&lt;char&gt; &gt; (9,000,000 samples, 0.01%)</title><rect x="858.7" y="69" width="0.2" height="15.0" fill="rgb(239,157,37)" rx="2" ry="2" />
+<text  x="861.70" y="79.5" ></text>
+</g>
+<g >
+<title>tlb_flush_mmu (349,000,000 samples, 0.58%)</title><rect x="1094.5" y="677" width="6.9" height="15.0" fill="rgb(214,45,10)" rx="2" ry="2" />
+<text  x="1097.52" y="687.5" ></text>
+</g>
+<g >
+<title>boost::asio::thread_pool::basic_executor_type&lt;std::allocator&lt;void&gt;, 0u&gt;::execute&lt;boost::asio::detail::binder0&lt;DOCTEST_ANON_FUNC_2 (24,762,250,000 samples, 41.21%)</title><rect x="152.4" y="693" width="486.2" height="15.0" fill="rgb(243,178,42)" rx="2" ry="2" />
+<text  x="155.36" y="703.5" >boost::asio::thread_pool::basic_executor_type&lt;std::allocator&lt;void&gt;..</text>
+</g>
+<g >
+<title>boost::asio::detail::conditionally_enabled_mutex::scoped_lock::scoped_lock (112,500,000 samples, 0.19%)</title><rect x="205.5" y="661" width="2.2" height="15.0" fill="rgb(247,196,47)" rx="2" ry="2" />
+<text  x="208.47" y="671.5" ></text>
+</g>
+<g >
+<title>std::__format::__formatter_chrono&lt;char&gt;::_M_S&lt;std::chrono::hh_mm_ss&lt;std::chrono::duration&lt;long, std::ratio&lt;1l, 1000000000l&gt; &gt; &gt;, std::basic_format_context&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt; &gt; (44,000,000 samples, 0.07%)</title><rect x="856.8" y="229" width="0.9" height="15.0" fill="rgb(221,74,17)" rx="2" ry="2" />
+<text  x="859.81" y="239.5" ></text>
+</g>
+<g >
+<title>std::chrono::current_zone (8,250,000 samples, 0.01%)</title><rect x="861.6" y="725" width="0.1" height="15.0" fill="rgb(221,76,18)" rx="2" ry="2" />
+<text  x="864.56" y="735.5" ></text>
+</g>
+<g >
+<title>std::__format::_Seq_sink&lt;std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt; &gt;::get (9,250,000 samples, 0.02%)</title><rect x="862.4" y="709" width="0.2" height="15.0" fill="rgb(242,170,40)" rx="2" ry="2" />
+<text  x="865.44" y="719.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::bind_handler&lt;DOCTEST_ANON_FUNC_2 (118,000,000 samples, 0.20%)</title><rect x="92.9" y="709" width="2.3" height="15.0" fill="rgb(240,163,39)" rx="2" ry="2" />
+<text  x="95.91" y="719.5" ></text>
+</g>
+<g >
+<title>std::chrono::tzdb::current_zone (6,000,000 samples, 0.01%)</title><rect x="1182.9" y="869" width="0.1" height="15.0" fill="rgb(205,3,0)" rx="2" ry="2" />
+<text  x="1185.89" y="879.5" ></text>
+</g>
+<g >
+<title>std::visit_format_arg&lt;std::__format::_Formatting_scanner&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt;::_M_format_arg (19,750,000 samples, 0.03%)</title><rect x="855.9" y="133" width="0.4" height="15.0" fill="rgb(244,183,43)" rx="2" ry="2" />
+<text  x="858.90" y="143.5" ></text>
+</g>
+<g >
+<title>std::__format::_Sink&lt;char&gt;::_M_write (15,500,000 samples, 0.03%)</title><rect x="863.1" y="645" width="0.4" height="15.0" fill="rgb(254,229,54)" rx="2" ry="2" />
+<text  x="866.15" y="655.5" ></text>
+</g>
+<g >
+<title>vmacache_find (8,500,000 samples, 0.01%)</title><rect x="940.7" y="789" width="0.2" height="15.0" fill="rgb(233,129,30)" rx="2" ry="2" />
+<text  x="943.70" y="799.5" ></text>
+</g>
+<g >
+<title>std::__format::_Spec&lt;char&gt;::_M_parse_width (5,750,000 samples, 0.01%)</title><rect x="856.0" y="53" width="0.1" height="15.0" fill="rgb(245,184,44)" rx="2" ry="2" />
+<text  x="859.03" y="63.5" ></text>
+</g>
+<g >
+<title>tty_insert_flip_string_and_push_buffer (435,500,000 samples, 0.72%)</title><rect x="16.7" y="725" width="8.6" height="15.0" fill="rgb(217,55,13)" rx="2" ry="2" />
+<text  x="19.75" y="735.5" ></text>
+</g>
+<g >
+<title>std::__atomic_base&lt;long&gt;::operator++ (178,750,000 samples, 0.30%)</title><rect x="614.5" y="645" width="3.5" height="15.0" fill="rgb(222,80,19)" rx="2" ry="2" />
+<text  x="617.53" y="655.5" ></text>
+</g>
+<g >
+<title>boost::asio::post&lt;boost::asio::thread_pool, DOCTEST_ANON_FUNC_2 (39,294,250,000 samples, 65.39%)</title><rect x="70.3" y="757" width="771.6" height="15.0" fill="rgb(215,46,11)" rx="2" ry="2" />
+<text  x="73.30" y="767.5" >boost::asio::post&lt;boost::asio::thread_pool, DOCTEST_ANON_FUNC_2</text>
+</g>
+<g >
+<title>boost::asio::detail::thread_context::top_of_thread_call_stack (316,500,000 samples, 0.53%)</title><rect x="249.7" y="629" width="6.2" height="15.0" fill="rgb(237,149,35)" rx="2" ry="2" />
+<text  x="252.69" y="639.5" ></text>
+</g>
+<g >
+<title>mmput (509,000,000 samples, 0.85%)</title><rect x="1091.6" y="741" width="10.0" height="15.0" fill="rgb(226,99,23)" rx="2" ry="2" />
+<text  x="1094.62" y="751.5" ></text>
+</g>
+<g >
+<title>handle_mm_fault (252,000,000 samples, 0.42%)</title><rect x="1185.0" y="805" width="5.0" height="15.0" fill="rgb(234,135,32)" rx="2" ry="2" />
+<text  x="1188.03" y="815.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::associated_allocator_impl&lt;DOCTEST_ANON_FUNC_2 (11,500,000 samples, 0.02%)</title><rect x="149.2" y="677" width="0.3" height="15.0" fill="rgb(253,221,53)" rx="2" ry="2" />
+<text  x="152.25" y="687.5" ></text>
+</g>
+<g >
+<title>malloc (105,000,000 samples, 0.17%)</title><rect x="333.2" y="613" width="2.1" height="15.0" fill="rgb(230,119,28)" rx="2" ry="2" />
+<text  x="336.23" y="623.5" ></text>
+</g>
+<g >
+<title>std::__format::__formatter_int&lt;char&gt;::_M_format_int&lt;std::__format::_Sink_iter&lt;char&gt; &gt; (7,250,000 samples, 0.01%)</title><rect x="857.4" y="53" width="0.1" height="15.0" fill="rgb(241,168,40)" rx="2" ry="2" />
+<text  x="860.35" y="63.5" ></text>
+</g>
+<g >
+<title>std::__format::_Scanner&lt;char&gt;::_M_scan (32,250,000 samples, 0.05%)</title><rect x="857.0" y="181" width="0.6" height="15.0" fill="rgb(224,89,21)" rx="2" ry="2" />
+<text  x="859.99" y="191.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::initiate_post_with_executor&lt;boost::asio::thread_pool::basic_executor_type&lt;std::allocator&lt;void&gt;, 0u&gt; &gt;::initiate_post_with_executor (161,000,000 samples, 0.27%)</title><rect x="63.9" y="757" width="3.2" height="15.0" fill="rgb(220,72,17)" rx="2" ry="2" />
+<text  x="66.94" y="767.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::op_queue_access::next&lt;boost::asio::detail::scheduler_operation, boost::asio::detail::scheduler_operation&gt; (269,250,000 samples, 0.45%)</title><rect x="477.1" y="645" width="5.3" height="15.0" fill="rgb(231,121,29)" rx="2" ry="2" />
+<text  x="480.10" y="655.5" ></text>
+</g>
+<g >
+<title>std::__format::_Formatting_scanner&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt;::_M_format_arg (25,250,000 samples, 0.04%)</title><rect x="857.1" y="149" width="0.5" height="15.0" fill="rgb(229,112,26)" rx="2" ry="2" />
+<text  x="860.09" y="159.5" ></text>
+</g>
+<g >
+<title>mem_cgroup_from_task (9,750,000 samples, 0.02%)</title><rect x="1089.7" y="789" width="0.2" height="15.0" fill="rgb(247,195,46)" rx="2" ry="2" />
+<text  x="1092.73" y="799.5" ></text>
+</g>
+<g >
+<title>vma_merge (27,750,000 samples, 0.05%)</title><rect x="28.1" y="773" width="0.5" height="15.0" fill="rgb(246,188,45)" rx="2" ry="2" />
+<text  x="31.06" y="783.5" ></text>
+</g>
+<g >
+<title>DOCTEST_ANON_FUNC_2 (42,622,750,000 samples, 70.93%)</title><rect x="30.6" y="821" width="837.0" height="15.0" fill="rgb(223,87,20)" rx="2" ry="2" />
+<text  x="33.57" y="831.5" >DOCTEST_ANON_FUNC_2</text>
+</g>
+<g >
+<title>boost::asio::detail::binder0&lt;DOCTEST_ANON_FUNC_2 (131,500,000 samples, 0.22%)</title><rect x="202.9" y="661" width="2.6" height="15.0" fill="rgb(246,192,46)" rx="2" ry="2" />
+<text  x="205.89" y="671.5" ></text>
+</g>
+<g >
+<title>do_exit (509,000,000 samples, 0.85%)</title><rect x="1091.6" y="757" width="10.0" height="15.0" fill="rgb(231,122,29)" rx="2" ry="2" />
+<text  x="1094.62" y="767.5" ></text>
+</g>
+<g >
+<title>std::chrono::hh_mm_ss&lt;std::chrono::duration&lt;long, std::ratio&lt;1l, 1000000000l&gt; &gt; &gt;::hh_mm_ss (16,750,000 samples, 0.03%)</title><rect x="857.7" y="197" width="0.4" height="15.0" fill="rgb(240,163,39)" rx="2" ry="2" />
+<text  x="860.74" y="207.5" ></text>
+</g>
+<g >
+<title>all (60,090,000,000 samples, 100%)</title><rect x="10.0" y="901" width="1180.0" height="15.0" fill="rgb(213,39,9)" rx="2" ry="2" />
+<text  x="13.00" y="911.5" ></text>
+</g>
+<g >
+<title>clock_gettime@@GLIBC_2.17 (8,500,000 samples, 0.01%)</title><rect x="850.8" y="725" width="0.2" height="15.0" fill="rgb(250,209,50)" rx="2" ry="2" />
+<text  x="853.83" y="735.5" ></text>
+</g>
+<g >
+<title>__mod_memcg_lruvec_state (9,500,000 samples, 0.02%)</title><rect x="1094.1" y="645" width="0.2" height="15.0" fill="rgb(247,195,46)" rx="2" ry="2" />
+<text  x="1097.09" y="655.5" ></text>
+</g>
+<g >
+<title>exit_mmap (509,000,000 samples, 0.85%)</title><rect x="1091.6" y="725" width="10.0" height="15.0" fill="rgb(236,143,34)" rx="2" ry="2" />
+<text  x="1094.62" y="735.5" ></text>
+</g>
+<g >
+<title>__alloc_pages (166,500,000 samples, 0.28%)</title><rect x="1185.2" y="773" width="3.3" height="15.0" fill="rgb(233,129,30)" rx="2" ry="2" />
+<text  x="1188.19" y="783.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::scheduler::post_immediate_completion (176,000,000 samples, 0.29%)</title><rect x="167.7" y="677" width="3.4" height="15.0" fill="rgb(205,0,0)" rx="2" ry="2" />
+<text  x="170.68" y="687.5" ></text>
+</g>
+<g >
+<title>__mem_cgroup_charge (264,750,000 samples, 0.44%)</title><rect x="1045.8" y="773" width="5.2" height="15.0" fill="rgb(218,60,14)" rx="2" ry="2" />
+<text  x="1048.80" y="783.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::posix_event::maybe_unlock_and_signal_one&lt;boost::asio::detail::conditionally_enabled_mutex::scoped_lock&gt; (95,750,000 samples, 0.16%)</title><rect x="574.0" y="629" width="1.9" height="15.0" fill="rgb(240,164,39)" rx="2" ry="2" />
+<text  x="576.98" y="639.5" ></text>
+</g>
+<g >
+<title>down_read_trylock (36,000,000 samples, 0.06%)</title><rect x="939.9" y="805" width="0.7" height="15.0" fill="rgb(219,66,15)" rx="2" ry="2" />
+<text  x="942.93" y="815.5" ></text>
+</g>
+<g >
+<title>std::__format::_Seq_sink&lt;std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt; &gt;::_M_overflow (7,000,000 samples, 0.01%)</title><rect x="854.5" y="389" width="0.1" height="15.0" fill="rgb(223,87,20)" rx="2" ry="2" />
+<text  x="857.49" y="399.5" ></text>
+</g>
+<g >
+<title>std::__format::_Formatting_scanner&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt;::_M_format_arg (22,250,000 samples, 0.04%)</title><rect x="857.1" y="101" width="0.5" height="15.0" fill="rgb(229,112,26)" rx="2" ry="2" />
+<text  x="860.13" y="111.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::conditionally_enabled_mutex::scoped_lock::locked (39,500,000 samples, 0.07%)</title><rect x="505.5" y="597" width="0.8" height="15.0" fill="rgb(234,135,32)" rx="2" ry="2" />
+<text  x="508.53" y="607.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::call_stack&lt;boost::asio::detail::thread_context, boost::asio::detail::thread_info_base&gt;::top (186,500,000 samples, 0.31%)</title><rect x="249.8" y="613" width="3.6" height="15.0" fill="rgb(232,128,30)" rx="2" ry="2" />
+<text  x="252.76" y="623.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::bind_handler&lt;DOCTEST_ANON_FUNC_2 (900,750,000 samples, 1.50%)</title><rect x="121.1" y="693" width="17.7" height="15.0" fill="rgb(240,163,39)" rx="2" ry="2" />
+<text  x="124.10" y="703.5" ></text>
+</g>
+<g >
+<title>process_echoes (5,250,000 samples, 0.01%)</title><rect x="16.5" y="725" width="0.1" height="15.0" fill="rgb(218,64,15)" rx="2" ry="2" />
+<text  x="19.53" y="735.5" ></text>
+</g>
+<g >
+<title>minilog::details::output_log (515,000,000 samples, 0.86%)</title><rect x="851.0" y="725" width="10.1" height="15.0" fill="rgb(225,94,22)" rx="2" ry="2" />
+<text  x="854.01" y="735.5" ></text>
+</g>
+<g >
+<title>do_group_exit (509,000,000 samples, 0.85%)</title><rect x="1091.6" y="773" width="10.0" height="15.0" fill="rgb(219,67,16)" rx="2" ry="2" />
+<text  x="1094.62" y="783.5" ></text>
+</g>
+<g >
+<title>std::__format::__do_vformat_to&lt;std::__format::_Sink_iter&lt;char&gt;, char, std::basic_format_context&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt; &gt; (27,250,000 samples, 0.05%)</title><rect x="858.4" y="197" width="0.5" height="15.0" fill="rgb(233,129,31)" rx="2" ry="2" />
+<text  x="861.40" y="207.5" ></text>
+</g>
+<g >
+<title>std::basic_format_arg&lt;std::basic_format_context&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt; &gt;::_M_visit&lt;std::__format::_Formatting_scanner&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt;::_M_format_arg (14,750,000 samples, 0.02%)</title><rect x="858.6" y="117" width="0.3" height="15.0" fill="rgb(251,213,51)" rx="2" ry="2" />
+<text  x="861.60" y="127.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::initiate_post_with_executor&lt;boost::asio::thread_pool::basic_executor_type&lt;std::allocator&lt;void&gt;, 0u&gt; &gt;::operator (34,176,500,000 samples, 56.88%)</title><rect x="95.2" y="709" width="671.2" height="15.0" fill="rgb(205,2,0)" rx="2" ry="2" />
+<text  x="98.23" y="719.5" >boost::asio::detail::initiate_post_with_executor&lt;boost::asio::thread_pool::basic_executor_ty..</text>
+</g>
+<g >
+<title>boost::asio::detail::noncopyable::noncopyable (8,750,000 samples, 0.01%)</title><rect x="389.1" y="629" width="0.1" height="15.0" fill="rgb(222,78,18)" rx="2" ry="2" />
+<text  x="392.07" y="639.5" ></text>
+</g>
+<g >
+<title>boost_asio_prefer_fn::impl::operator (3,089,500,000 samples, 5.14%)</title><rect x="680.7" y="677" width="60.6" height="15.0" fill="rgb(207,11,2)" rx="2" ry="2" />
+<text  x="683.67" y="687.5" >boost_..</text>
+</g>
+<g >
+<title>operator new (22,500,000 samples, 0.04%)</title><rect x="628.7" y="661" width="0.5" height="15.0" fill="rgb(216,51,12)" rx="2" ry="2" />
+<text  x="631.74" y="671.5" ></text>
+</g>
+<g >
+<title>_raw_spin_lock (1,606,750,000 samples, 2.67%)</title><rect x="1052.1" y="773" width="31.5" height="15.0" fill="rgb(239,160,38)" rx="2" ry="2" />
+<text  x="1055.10" y="783.5" >_r..</text>
+</g>
+<g >
+<title>boost::asio::execution::allocator_t&lt;void&gt;::operator (179,750,000 samples, 0.30%)</title><rect x="766.4" y="709" width="3.5" height="15.0" fill="rgb(239,159,38)" rx="2" ry="2" />
+<text  x="769.36" y="719.5" ></text>
+</g>
+<g >
+<title>std::__format::__formatter_chrono&lt;char&gt;::_M_format&lt;std::chrono::time_point&lt;std::chrono::_V2::system_clock, std::chrono::duration&lt;long, std::ratio&lt;1l, 1000000000l&gt; &gt; &gt;, std::basic_format_context&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt; &gt; (223,000,000 samples, 0.37%)</title><rect x="854.8" y="261" width="4.4" height="15.0" fill="rgb(219,66,15)" rx="2" ry="2" />
+<text  x="857.85" y="271.5" ></text>
+</g>
+<g >
+<title>pool_test (60,090,000,000 samples, 100.00%)</title><rect x="10.0" y="885" width="1180.0" height="15.0" fill="rgb(250,209,50)" rx="2" ry="2" />
+<text  x="13.00" y="895.5" >pool_test</text>
+</g>
+<g >
+<title>__GI___libc_write (532,500,000 samples, 0.89%)</title><rect x="15.1" y="853" width="10.4" height="15.0" fill="rgb(217,57,13)" rx="2" ry="2" />
+<text  x="18.05" y="863.5" ></text>
+</g>
+<g >
+<title>boost::asio::thread_pool::basic_executor_type&lt;std::allocator&lt;void&gt;, 0u&gt;::~basic_executor_type (92,000,000 samples, 0.15%)</title><rect x="832.7" y="741" width="1.8" height="15.0" fill="rgb(228,107,25)" rx="2" ry="2" />
+<text  x="835.68" y="751.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::thread_info_base::allocate&lt;boost::asio::detail::thread_info_base::default_tag&gt; (95,750,000 samples, 0.16%)</title><rect x="346.1" y="645" width="1.8" height="15.0" fill="rgb(223,83,19)" rx="2" ry="2" />
+<text  x="349.06" y="655.5" ></text>
+</g>
+<g >
+<title>__do_sys_brk (169,250,000 samples, 0.28%)</title><rect x="25.8" y="805" width="3.3" height="15.0" fill="rgb(217,58,13)" rx="2" ry="2" />
+<text  x="28.79" y="815.5" ></text>
+</g>
+<g >
+<title>std::__format::_Scanner&lt;char&gt;::_M_scan (261,750,000 samples, 0.44%)</title><rect x="854.7" y="389" width="5.1" height="15.0" fill="rgb(224,89,21)" rx="2" ry="2" />
+<text  x="857.68" y="399.5" ></text>
+</g>
+<g >
+<title>std::vformat[abi:cxx11] (44,250,000 samples, 0.07%)</title><rect x="855.6" y="213" width="0.8" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="858.55" y="223.5" ></text>
+</g>
+<g >
+<title>set_root (10,000,000 samples, 0.02%)</title><rect x="11.5" y="677" width="0.2" height="15.0" fill="rgb(235,139,33)" rx="2" ry="2" />
+<text  x="14.47" y="687.5" ></text>
+</g>
+<g >
+<title>boost_asio_require_fn::impl::operator (174,250,000 samples, 0.29%)</title><rect x="793.1" y="709" width="3.5" height="15.0" fill="rgb(225,95,22)" rx="2" ry="2" />
+<text  x="796.14" y="719.5" ></text>
+</g>
+<g >
+<title>unmap_page_range (509,000,000 samples, 0.85%)</title><rect x="1091.6" y="693" width="10.0" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="1094.62" y="703.5" ></text>
+</g>
+<g >
+<title>std::addressof&lt;std::allocator&lt;void&gt; const&gt; (181,750,000 samples, 0.30%)</title><rect x="635.0" y="677" width="3.6" height="15.0" fill="rgb(215,47,11)" rx="2" ry="2" />
+<text  x="638.05" y="687.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::scheduler::wake_one_thread_and_unlock (242,000,000 samples, 0.40%)</title><rect x="618.0" y="661" width="4.8" height="15.0" fill="rgb(245,184,44)" rx="2" ry="2" />
+<text  x="621.04" y="671.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::scheduler::post_immediate_completion (13,112,000,000 samples, 21.82%)</title><rect x="360.6" y="661" width="257.4" height="15.0" fill="rgb(205,0,0)" rx="2" ry="2" />
+<text  x="363.56" y="671.5" >boost::asio::detail::scheduler::po..</text>
+</g>
+<g >
+<title>__strlen_avx2 (6,000,000 samples, 0.01%)</title><rect x="851.1" y="677" width="0.2" height="15.0" fill="rgb(246,188,45)" rx="2" ry="2" />
+<text  x="854.14" y="687.5" ></text>
+</g>
+<g >
+<title>__pagevec_lru_add (10,500,000 samples, 0.02%)</title><rect x="1189.6" y="757" width="0.3" height="15.0" fill="rgb(228,106,25)" rx="2" ry="2" />
+<text  x="1192.65" y="767.5" ></text>
+</g>
+<g >
+<title>std::basic_format_arg&lt;std::basic_format_context&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt; &gt;::_M_visit&lt;std::__format::_Formatting_scanner&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt;::_M_format_arg (410,000,000 samples, 0.68%)</title><rect x="852.4" y="597" width="8.1" height="15.0" fill="rgb(251,213,51)" rx="2" ry="2" />
+<text  x="855.40" y="607.5" ></text>
+</g>
+<g >
+<title>std::filesystem::read_symlink (12,500,000 samples, 0.02%)</title><rect x="14.6" y="837" width="0.2" height="15.0" fill="rgb(234,135,32)" rx="2" ry="2" />
+<text  x="17.59" y="847.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::conditionally_enabled_mutex::scoped_lock::locked (181,250,000 samples, 0.30%)</title><rect x="496.8" y="613" width="3.6" height="15.0" fill="rgb(234,135,32)" rx="2" ry="2" />
+<text  x="499.85" y="623.5" ></text>
+</g>
+<g >
+<title>std::chrono::tzdb::current_zone (9,000,000 samples, 0.01%)</title><rect x="14.3" y="837" width="0.2" height="15.0" fill="rgb(205,3,0)" rx="2" ry="2" />
+<text  x="17.35" y="847.5" ></text>
+</g>
+<g >
+<title>pthread_mutex_lock@@GLIBC_2.2.5 (2,864,500,000 samples, 4.77%)</title><rect x="390.4" y="629" width="56.3" height="15.0" fill="rgb(244,179,42)" rx="2" ry="2" />
+<text  x="393.43" y="639.5" >pthre..</text>
+</g>
+<g >
+<title>[unknown] (1,031,250,000 samples, 1.72%)</title><rect x="10.0" y="869" width="20.3" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="13.03" y="879.5" ></text>
+</g>
+<g >
+<title>[unknown] (6,000,000 samples, 0.01%)</title><rect x="10.2" y="837" width="0.1" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="13.17" y="847.5" ></text>
+</g>
+<g >
+<title>std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;::_M_local_data (7,750,000 samples, 0.01%)</title><rect x="862.6" y="645" width="0.2" height="15.0" fill="rgb(214,42,10)" rx="2" ry="2" />
+<text  x="865.65" y="655.5" ></text>
+</g>
+<g >
+<title>minilog::generic_log&lt;int&gt; (713,500,000 samples, 1.19%)</title><rect x="850.4" y="741" width="14.0" height="15.0" fill="rgb(207,12,2)" rx="2" ry="2" />
+<text  x="853.40" y="751.5" ></text>
+</g>
+<g >
+<title>std::chrono::time_zone::_M_get_sys_info (13,500,000 samples, 0.02%)</title><rect x="853.0" y="517" width="0.3" height="15.0" fill="rgb(217,55,13)" rx="2" ry="2" />
+<text  x="856.02" y="527.5" ></text>
+</g>
+<g >
+<title>std::__format::_Scanner&lt;char&gt;::_M_scan (25,250,000 samples, 0.04%)</title><rect x="858.4" y="181" width="0.5" height="15.0" fill="rgb(224,89,21)" rx="2" ry="2" />
+<text  x="861.43" y="191.5" ></text>
+</g>
+<g >
+<title>boost::asio::aligned_new (3,099,250,000 samples, 5.16%)</title><rect x="272.4" y="613" width="60.8" height="15.0" fill="rgb(218,60,14)" rx="2" ry="2" />
+<text  x="275.37" y="623.5" >boost:..</text>
+</g>
+<g >
+<title>std::chrono::tzdb_list::begin (13,000,000 samples, 0.02%)</title><rect x="861.9" y="725" width="0.3" height="15.0" fill="rgb(246,191,45)" rx="2" ry="2" />
+<text  x="864.95" y="735.5" ></text>
+</g>
+<g >
+<title>boost::asio::thread_pool::basic_executor_type&lt;std::allocator&lt;void&gt;, 0u&gt;::~basic_executor_type (577,750,000 samples, 0.96%)</title><rect x="778.6" y="709" width="11.4" height="15.0" fill="rgb(228,107,25)" rx="2" ry="2" />
+<text  x="781.62" y="719.5" ></text>
+</g>
+<g >
+<title>std::__format::__do_vformat_to&lt;std::__format::_Sink_iter&lt;char&gt;, char, std::basic_format_context&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt; &gt; (76,750,000 samples, 0.13%)</title><rect x="862.8" y="709" width="1.5" height="15.0" fill="rgb(233,129,31)" rx="2" ry="2" />
+<text  x="865.81" y="719.5" ></text>
+</g>
+<g >
+<title>__handle_mm_fault (7,526,000,000 samples, 12.52%)</title><rect x="941.9" y="789" width="147.8" height="15.0" fill="rgb(207,9,2)" rx="2" ry="2" />
+<text  x="944.94" y="799.5" >__handle_mm_fault</text>
+</g>
+<g >
+<title>__fget_light (9,250,000 samples, 0.02%)</title><rect x="15.2" y="773" width="0.2" height="15.0" fill="rgb(233,132,31)" rx="2" ry="2" />
+<text  x="18.18" y="783.5" ></text>
+</g>
+<g >
+<title>shrink_slab (7,500,000 samples, 0.01%)</title><rect x="947.7" y="693" width="0.1" height="15.0" fill="rgb(218,61,14)" rx="2" ry="2" />
+<text  x="950.67" y="703.5" ></text>
+</g>
+<g >
+<title>std::basic_string_view&lt;char, std::char_traits&lt;char&gt; &gt;::copy (6,250,000 samples, 0.01%)</title><rect x="863.2" y="629" width="0.1" height="15.0" fill="rgb(241,166,39)" rx="2" ry="2" />
+<text  x="866.20" y="639.5" ></text>
+</g>
+<g >
+<title>doctest::Context::run (42,622,750,000 samples, 70.93%)</title><rect x="30.6" y="837" width="837.0" height="15.0" fill="rgb(228,108,26)" rx="2" ry="2" />
+<text  x="33.57" y="847.5" >doctest::Context::run</text>
+</g>
+<g >
+<title>std::chrono::get_tzdb_list (8,250,000 samples, 0.01%)</title><rect x="861.7" y="725" width="0.2" height="15.0" fill="rgb(254,229,54)" rx="2" ry="2" />
+<text  x="864.73" y="735.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::recycling_allocator&lt;boost::asio::detail::executor_op&lt;boost::asio::detail::binder0&lt;DOCTEST_ANON_FUNC_2 (4,947,000,000 samples, 8.23%)</title><rect x="238.2" y="645" width="97.1" height="15.0" fill="rgb(220,72,17)" rx="2" ry="2" />
+<text  x="241.15" y="655.5" >boost::asio..</text>
+</g>
+<g >
+<title>__GI___fstatat64 (97,250,000 samples, 0.16%)</title><rect x="10.5" y="837" width="1.9" height="15.0" fill="rgb(227,101,24)" rx="2" ry="2" />
+<text  x="13.47" y="847.5" ></text>
+</g>
+<g >
+<title>__mod_lruvec_state (14,250,000 samples, 0.02%)</title><rect x="1093.8" y="645" width="0.3" height="15.0" fill="rgb(226,100,24)" rx="2" ry="2" />
+<text  x="1096.81" y="655.5" ></text>
+</g>
+<g >
+<title>do_try_to_free_pages (13,750,000 samples, 0.02%)</title><rect x="947.5" y="725" width="0.3" height="15.0" fill="rgb(250,211,50)" rx="2" ry="2" />
+<text  x="950.54" y="735.5" ></text>
+</g>
+<g >
+<title>std::__format::__do_vformat_to&lt;std::__format::_Sink_iter&lt;char&gt;, char, std::basic_format_context&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt; &gt; (36,000,000 samples, 0.06%)</title><rect x="855.7" y="197" width="0.7" height="15.0" fill="rgb(233,129,31)" rx="2" ry="2" />
+<text  x="858.71" y="207.5" ></text>
+</g>
+<g >
+<title>std::__cxx11::basic_stringbuf&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;::_M_pbump (5,500,000 samples, 0.01%)</title><rect x="1182.3" y="869" width="0.1" height="15.0" fill="rgb(217,56,13)" rx="2" ry="2" />
+<text  x="1185.32" y="879.5" ></text>
+</g>
+<g >
+<title>std::__format::_Scanner&lt;char&gt;::_M_on_replacement_field (17,750,000 samples, 0.03%)</title><rect x="858.5" y="165" width="0.4" height="15.0" fill="rgb(210,25,6)" rx="2" ry="2" />
+<text  x="861.54" y="175.5" ></text>
+</g>
+<g >
+<title>std::__format::_Formatting_scanner&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt;::_M_format_arg (18,000,000 samples, 0.03%)</title><rect x="863.6" y="613" width="0.4" height="15.0" fill="rgb(229,112,26)" rx="2" ry="2" />
+<text  x="866.65" y="623.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::scheduler_operation::scheduler_operation (329,250,000 samples, 0.55%)</title><rect x="337.6" y="645" width="6.5" height="15.0" fill="rgb(251,214,51)" rx="2" ry="2" />
+<text  x="340.61" y="655.5" ></text>
+</g>
+<g >
+<title>inode_permission (10,000,000 samples, 0.02%)</title><rect x="11.1" y="693" width="0.2" height="15.0" fill="rgb(208,18,4)" rx="2" ry="2" />
+<text  x="14.06" y="703.5" ></text>
+</g>
+<g >
+<title>DOCTEST_ANON_FUNC_2 (42,464,000,000 samples, 70.67%)</title><rect x="30.6" y="773" width="833.9" height="15.0" fill="rgb(223,87,20)" rx="2" ry="2" />
+<text  x="33.59" y="783.5" >DOCTEST_ANON_FUNC_2</text>
+</g>
+<g >
+<title>do_syscall_64 (529,750,000 samples, 0.88%)</title><rect x="15.1" y="821" width="10.4" height="15.0" fill="rgb(209,20,4)" rx="2" ry="2" />
+<text  x="18.11" y="831.5" ></text>
+</g>
+<g >
+<title>boost::asio::execution::allocator_t&lt;std::allocator&lt;void&gt; &gt;::allocator_t (118,750,000 samples, 0.20%)</title><rect x="141.5" y="693" width="2.4" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="144.53" y="703.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::get_recycling_allocator&lt;std::allocator&lt;void&gt;, boost::asio::detail::thread_info_base::default_tag&gt;::get (15,000,000 samples, 0.02%)</title><rect x="237.9" y="645" width="0.3" height="15.0" fill="rgb(210,25,6)" rx="2" ry="2" />
+<text  x="240.86" y="655.5" ></text>
+</g>
+<g >
+<title>security_vm_enough_memory_mm (7,750,000 samples, 0.01%)</title><rect x="27.9" y="773" width="0.2" height="15.0" fill="rgb(228,109,26)" rx="2" ry="2" />
+<text  x="30.90" y="783.5" ></text>
+</g>
+<g >
+<title>kernel_init_free_pages.part.0 (50,750,000 samples, 0.08%)</title><rect x="946.5" y="725" width="1.0" height="15.0" fill="rgb(213,40,9)" rx="2" ry="2" />
+<text  x="949.55" y="735.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::scheduler::work_started (161,750,000 samples, 0.27%)</title><rect x="622.8" y="661" width="3.2" height="15.0" fill="rgb(216,52,12)" rx="2" ry="2" />
+<text  x="625.79" y="671.5" ></text>
+</g>
+<g >
+<title>std::__format::_Seq_sink&lt;std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt; &gt;::_M_overflow (6,500,000 samples, 0.01%)</title><rect x="862.5" y="693" width="0.1" height="15.0" fill="rgb(223,87,20)" rx="2" ry="2" />
+<text  x="865.49" y="703.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::binder0&lt;DOCTEST_ANON_FUNC_2 (543,500,000 samples, 0.90%)</title><rect x="128.1" y="677" width="10.7" height="15.0" fill="rgb(246,192,46)" rx="2" ry="2" />
+<text  x="131.12" y="687.5" ></text>
+</g>
+<g >
+<title>security_mmap_addr (5,250,000 samples, 0.01%)</title><rect x="26.1" y="757" width="0.1" height="15.0" fill="rgb(236,144,34)" rx="2" ry="2" />
+<text  x="29.14" y="767.5" ></text>
+</g>
+<g >
+<title>free_pcp_prepare (8,000,000 samples, 0.01%)</title><rect x="1101.2" y="629" width="0.1" height="15.0" fill="rgb(248,197,47)" rx="2" ry="2" />
+<text  x="1104.19" y="639.5" ></text>
+</g>
+<g >
+<title>ankerl::nanobench::Bench::run&lt;DOCTEST_ANON_FUNC_2 (42,622,750,000 samples, 70.93%)</title><rect x="30.6" y="805" width="837.0" height="15.0" fill="rgb(247,195,46)" rx="2" ry="2" />
+<text  x="33.57" y="815.5" >ankerl::nanobench::Bench::run&lt;DOCTEST_ANON_FUNC_2</text>
+</g>
+<g >
+<title>boost::asio::detail::initiate_post_with_executor&lt;boost::asio::thread_pool::basic_executor_type&lt;std::allocator&lt;void&gt;, 0u&gt; &gt;::initiate_post_with_executor (707,250,000 samples, 1.18%)</title><rect x="804.3" y="741" width="13.9" height="15.0" fill="rgb(220,72,17)" rx="2" ry="2" />
+<text  x="807.34" y="751.5" ></text>
+</g>
+<g >
+<title>std::vformat[abi:cxx11] (279,250,000 samples, 0.46%)</title><rect x="854.4" y="421" width="5.4" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="857.36" y="431.5" ></text>
+</g>
+<g >
+<title>__x64_sys_readlink (24,500,000 samples, 0.04%)</title><rect x="12.6" y="789" width="0.4" height="15.0" fill="rgb(242,171,40)" rx="2" ry="2" />
+<text  x="15.57" y="799.5" ></text>
+</g>
+<g >
+<title>std::__format::_Formatting_scanner&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt;::_M_on_chars (9,000,000 samples, 0.01%)</title><rect x="852.0" y="645" width="0.2" height="15.0" fill="rgb(205,1,0)" rx="2" ry="2" />
+<text  x="855.02" y="655.5" ></text>
+</g>
+<g >
+<title>minilog::details::log_level_name[abi:cxx11] (11,000,000 samples, 0.02%)</title><rect x="851.1" y="709" width="0.2" height="15.0" fill="rgb(232,125,30)" rx="2" ry="2" />
+<text  x="854.06" y="719.5" ></text>
+</g>
+<g >
+<title>std::basic_string_view&lt;char, std::char_traits&lt;char&gt; &gt;::find (9,000,000 samples, 0.01%)</title><rect x="864.1" y="677" width="0.2" height="15.0" fill="rgb(209,19,4)" rx="2" ry="2" />
+<text  x="867.08" y="687.5" ></text>
+</g>
+<g >
+<title>std::chrono::time_zone::get_info&lt;std::chrono::duration&lt;long, std::ratio&lt;1l, 1000000000l&gt; &gt; &gt; (6,750,000 samples, 0.01%)</title><rect x="853.3" y="517" width="0.1" height="15.0" fill="rgb(208,17,4)" rx="2" ry="2" />
+<text  x="856.28" y="527.5" ></text>
+</g>
+<g >
+<title>std::basic_format_arg&lt;std::basic_format_context&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt; &gt;::handle::_S_format&lt;std::chrono::time_point&lt;std::chrono::_V2::system_clock, std::chrono::duration&lt;long, std::ratio&lt;1l, 1000000000l&gt; &gt; &gt; const&gt; (249,500,000 samples, 0.42%)</title><rect x="854.8" y="293" width="4.9" height="15.0" fill="rgb(240,161,38)" rx="2" ry="2" />
+<text  x="857.78" y="303.5" ></text>
+</g>
+<g >
+<title>syscall_exit_to_user_mode (509,000,000 samples, 0.85%)</title><rect x="1091.6" y="837" width="10.0" height="15.0" fill="rgb(251,211,50)" rx="2" ry="2" />
+<text  x="1094.62" y="847.5" ></text>
+</g>
+<g >
+<title>std::__format::_Scanner&lt;char&gt;::_M_on_replacement_field (21,500,000 samples, 0.04%)</title><rect x="855.9" y="165" width="0.4" height="15.0" fill="rgb(210,25,6)" rx="2" ry="2" />
+<text  x="858.88" y="175.5" ></text>
+</g>
+<g >
+<title>boost::asio::post&lt;boost::asio::thread_pool, DOCTEST_ANON_FUNC_2 (157,750,000 samples, 0.26%)</title><rect x="864.5" y="773" width="3.1" height="15.0" fill="rgb(215,46,11)" rx="2" ry="2" />
+<text  x="867.46" y="783.5" ></text>
+</g>
+<g >
+<title>shrink_lruvec (5,750,000 samples, 0.01%)</title><rect x="947.6" y="693" width="0.1" height="15.0" fill="rgb(224,89,21)" rx="2" ry="2" />
+<text  x="950.55" y="703.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::get_recycling_allocator&lt;std::allocator&lt;void&gt;, boost::asio::detail::thread_info_base::default_tag&gt;::get (190,000,000 samples, 0.32%)</title><rect x="347.9" y="661" width="3.8" height="15.0" fill="rgb(210,25,6)" rx="2" ry="2" />
+<text  x="350.94" y="671.5" ></text>
+</g>
+<g >
+<title>__libc_start_call_main (42,622,750,000 samples, 70.93%)</title><rect x="30.6" y="869" width="837.0" height="15.0" fill="rgb(210,26,6)" rx="2" ry="2" />
+<text  x="33.57" y="879.5" >__libc_start_call_main</text>
+</g>
+<g >
+<title>entry_SYSCALL_64_after_hwframe (529,750,000 samples, 0.88%)</title><rect x="15.1" y="837" width="10.4" height="15.0" fill="rgb(218,63,15)" rx="2" ry="2" />
+<text  x="18.11" y="847.5" ></text>
+</g>
+<g >
+<title>std::char_traits&lt;char&gt;::copy (11,000,000 samples, 0.02%)</title><rect x="1182.7" y="869" width="0.2" height="15.0" fill="rgb(231,121,29)" rx="2" ry="2" />
+<text  x="1185.67" y="879.5" ></text>
+</g>
+<g >
+<title>boost::asio::thread_pool::basic_executor_type&lt;std::allocator&lt;void&gt;, 0u&gt;::basic_executor_type (320,250,000 samples, 0.53%)</title><rect x="697.3" y="661" width="6.3" height="15.0" fill="rgb(242,171,41)" rx="2" ry="2" />
+<text  x="700.32" y="671.5" ></text>
+</g>
+<g >
+<title>exit_to_user_mode_prepare (509,000,000 samples, 0.85%)</title><rect x="1091.6" y="821" width="10.0" height="15.0" fill="rgb(228,108,25)" rx="2" ry="2" />
+<text  x="1094.62" y="831.5" ></text>
+</g>
+<g >
+<title>std::visit_format_arg&lt;std::__format::_Formatting_scanner&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt;::_M_format_arg (15,500,000 samples, 0.03%)</title><rect x="858.6" y="133" width="0.3" height="15.0" fill="rgb(244,183,43)" rx="2" ry="2" />
+<text  x="861.59" y="143.5" ></text>
+</g>
+<g >
+<title>do_syscall_64 (96,250,000 samples, 0.16%)</title><rect x="10.5" y="805" width="1.9" height="15.0" fill="rgb(209,20,4)" rx="2" ry="2" />
+<text  x="13.49" y="815.5" ></text>
+</g>
+<g >
+<title>std::formatter&lt;int, char&gt;::format&lt;std::__format::_Sink_iter&lt;char&gt; &gt; (13,000,000 samples, 0.02%)</title><rect x="863.7" y="597" width="0.3" height="15.0" fill="rgb(237,149,35)" rx="2" ry="2" />
+<text  x="866.75" y="607.5" ></text>
+</g>
+<g >
+<title>std::__str_concat&lt;std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt; &gt; (8,500,000 samples, 0.01%)</title><rect x="860.9" y="693" width="0.2" height="15.0" fill="rgb(244,181,43)" rx="2" ry="2" />
+<text  x="863.92" y="703.5" ></text>
+</g>
+<g >
+<title>std::__format::_Seq_sink&lt;std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt; &gt;::get (8,750,000 samples, 0.01%)</title><rect x="854.5" y="405" width="0.1" height="15.0" fill="rgb(242,170,40)" rx="2" ry="2" />
+<text  x="857.46" y="415.5" ></text>
+</g>
+<g >
+<title>asm_exc_page_fault (9,321,000,000 samples, 15.51%)</title><rect x="908.5" y="853" width="183.1" height="15.0" fill="rgb(225,93,22)" rx="2" ry="2" />
+<text  x="911.52" y="863.5" >asm_exc_page_fault</text>
+</g>
+<g >
+<title>std::basic_format_arg&lt;std::basic_format_context&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt; &gt;::_M_visit&lt;std::__format::_Formatting_scanner&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt;::_M_format_arg (20,250,000 samples, 0.03%)</title><rect x="863.6" y="629" width="0.4" height="15.0" fill="rgb(251,213,51)" rx="2" ry="2" />
+<text  x="866.62" y="639.5" ></text>
+</g>
+<g >
+<title>std::__format::_Scanner&lt;char&gt;::_M_scan (440,750,000 samples, 0.73%)</title><rect x="852.0" y="661" width="8.6" height="15.0" fill="rgb(224,89,21)" rx="2" ry="2" />
+<text  x="854.96" y="671.5" ></text>
+</g>
+<g >
+<title>std::format&lt;std::chrono::time_point&lt;std::chrono::_V2::system_clock, std::chrono::duration&lt;long, std::ratio&lt;1l, 1000000000l&gt; &gt; &gt; const&amp;&gt; (284,250,000 samples, 0.47%)</title><rect x="854.3" y="437" width="5.5" height="15.0" fill="rgb(229,113,27)" rx="2" ry="2" />
+<text  x="857.26" y="447.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::recycling_allocator&lt;void, boost::asio::detail::thread_info_base::default_tag&gt;::recycling_allocator (117,750,000 samples, 0.20%)</title><rect x="335.3" y="645" width="2.3" height="15.0" fill="rgb(219,64,15)" rx="2" ry="2" />
+<text  x="338.30" y="655.5" ></text>
+</g>
+<g >
+<title>__perf_sw_event (39,500,000 samples, 0.07%)</title><rect x="939.1" y="805" width="0.8" height="15.0" fill="rgb(248,201,48)" rx="2" ry="2" />
+<text  x="942.14" y="815.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::posix_mutex::unlock (127,750,000 samples, 0.21%)</title><rect x="569.6" y="613" width="2.5" height="15.0" fill="rgb(242,171,40)" rx="2" ry="2" />
+<text  x="572.60" y="623.5" ></text>
+</g>
+<g >
+<title>syscall_enter_from_user_mode (7,500,000 samples, 0.01%)</title><rect x="29.2" y="805" width="0.1" height="15.0" fill="rgb(254,229,54)" rx="2" ry="2" />
+<text  x="32.16" y="815.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::op_queue&lt;boost::asio::detail::scheduler_operation&gt;::push (852,000,000 samples, 1.42%)</title><rect x="460.4" y="645" width="16.7" height="15.0" fill="rgb(216,50,12)" rx="2" ry="2" />
+<text  x="463.37" y="655.5" ></text>
+</g>
+<g >
+<title>do_syscall_64 (28,250,000 samples, 0.05%)</title><rect x="12.5" y="805" width="0.6" height="15.0" fill="rgb(209,20,4)" rx="2" ry="2" />
+<text  x="15.52" y="815.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::posix_mutex::lock (101,000,000 samples, 0.17%)</title><rect x="482.4" y="645" width="2.0" height="15.0" fill="rgb(208,16,3)" rx="2" ry="2" />
+<text  x="485.39" y="655.5" ></text>
+</g>
+<g >
+<title>page_add_new_anon_rmap (46,250,000 samples, 0.08%)</title><rect x="1088.8" y="773" width="0.9" height="15.0" fill="rgb(235,138,33)" rx="2" ry="2" />
+<text  x="1091.82" y="783.5" ></text>
+</g>
+<g >
+<title>tty_paranoia_check (5,750,000 samples, 0.01%)</title><rect x="25.3" y="741" width="0.1" height="15.0" fill="rgb(215,48,11)" rx="2" ry="2" />
+<text  x="28.33" y="751.5" ></text>
+</g>
+<g >
+<title>__vma_adjust (25,500,000 samples, 0.04%)</title><rect x="28.1" y="757" width="0.5" height="15.0" fill="rgb(224,87,20)" rx="2" ry="2" />
+<text  x="31.10" y="767.5" ></text>
+</g>
+<g >
+<title>sysmalloc (345,500,000 samples, 0.57%)</title><rect x="1183.2" y="869" width="6.8" height="15.0" fill="rgb(213,38,9)" rx="2" ry="2" />
+<text  x="1186.22" y="879.5" ></text>
+</g>
+<g >
+<title>boost::asio::thread_pool::basic_executor_type&lt;std::allocator&lt;void&gt;, 0u&gt;::execute&lt;boost::asio::detail::binder0&lt;DOCTEST_ANON_FUNC_2 (265,250,000 samples, 0.44%)</title><rect x="773.4" y="709" width="5.2" height="15.0" fill="rgb(243,178,42)" rx="2" ry="2" />
+<text  x="776.42" y="719.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::executor_op&lt;boost::asio::detail::binder0&lt;DOCTEST_ANON_FUNC_2 (407,250,000 samples, 0.68%)</title><rect x="229.9" y="645" width="8.0" height="15.0" fill="rgb(254,226,54)" rx="2" ry="2" />
+<text  x="232.86" y="655.5" ></text>
+</g>
+<g >
+<title>boost::asio::thread_pool::basic_executor_type&lt;std::allocator&lt;void&gt;, 0u&gt;::require (834,500,000 samples, 1.39%)</title><rect x="703.6" y="661" width="16.4" height="15.0" fill="rgb(233,130,31)" rx="2" ry="2" />
+<text  x="706.61" y="671.5" ></text>
+</g>
+<g >
+<title>std::__format::__formatter_int&lt;char&gt;::_M_parse&lt;int&gt; (13,250,000 samples, 0.02%)</title><rect x="855.9" y="85" width="0.3" height="15.0" fill="rgb(251,216,51)" rx="2" ry="2" />
+<text  x="858.92" y="95.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::binder0&lt;DOCTEST_ANON_FUNC_2 (258,750,000 samples, 0.43%)</title><rect x="224.8" y="645" width="5.1" height="15.0" fill="rgb(246,192,46)" rx="2" ry="2" />
+<text  x="227.78" y="655.5" ></text>
+</g>
+<g >
+<title>__mod_lruvec_page_state (29,000,000 samples, 0.05%)</title><rect x="1093.7" y="661" width="0.6" height="15.0" fill="rgb(245,185,44)" rx="2" ry="2" />
+<text  x="1096.71" y="671.5" ></text>
+</g>
+<g >
+<title>shrink_node (13,750,000 samples, 0.02%)</title><rect x="947.5" y="709" width="0.3" height="15.0" fill="rgb(242,172,41)" rx="2" ry="2" />
+<text  x="950.54" y="719.5" ></text>
+</g>
+<g >
+<title>__libc_memalign (195,000,000 samples, 0.32%)</title><rect x="266.9" y="613" width="3.8" height="15.0" fill="rgb(234,136,32)" rx="2" ry="2" />
+<text  x="269.87" y="623.5" ></text>
+</g>
+<g >
+<title>ksys_write (526,250,000 samples, 0.88%)</title><rect x="15.1" y="805" width="10.4" height="15.0" fill="rgb(205,4,1)" rx="2" ry="2" />
+<text  x="18.14" y="815.5" ></text>
+</g>
+<g >
+<title>boost::asio::thread_pool::basic_executor_type&lt;std::allocator&lt;void&gt;, 0u&gt;::basic_executor_type (168,000,000 samples, 0.28%)</title><rect x="747.0" y="677" width="3.3" height="15.0" fill="rgb(242,171,41)" rx="2" ry="2" />
+<text  x="749.96" y="687.5" ></text>
+</g>
+<g >
+<title>std::__atomic_base&lt;long&gt;::operator++ (1,843,000,000 samples, 3.07%)</title><rect x="578.3" y="629" width="36.2" height="15.0" fill="rgb(222,80,19)" rx="2" ry="2" />
+<text  x="581.34" y="639.5" >std..</text>
+</g>
+<g >
+<title>boost::asio::detail::conditionally_enabled_event::maybe_unlock_and_signal_one (735,750,000 samples, 1.22%)</title><rect x="491.9" y="629" width="14.4" height="15.0" fill="rgb(218,63,15)" rx="2" ry="2" />
+<text  x="494.85" y="639.5" ></text>
+</g>
+<g >
+<title>file_tty_write.constprop.0 (502,750,000 samples, 0.84%)</title><rect x="15.6" y="757" width="9.8" height="15.0" fill="rgb(219,64,15)" rx="2" ry="2" />
+<text  x="18.57" y="767.5" ></text>
+</g>
+<g >
+<title>boost::asio::thread_pool::basic_executor_type&lt;std::allocator&lt;void&gt;, 0u&gt;::require&lt;std::allocator&lt;void&gt; &gt; (127,000,000 samples, 0.21%)</title><rect x="678.1" y="677" width="2.5" height="15.0" fill="rgb(251,213,51)" rx="2" ry="2" />
+<text  x="681.14" y="687.5" ></text>
+</g>
+<g >
+<title>std::__format::_Formatting_scanner&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt;::_M_format_arg (16,750,000 samples, 0.03%)</title><rect x="858.6" y="149" width="0.3" height="15.0" fill="rgb(229,112,26)" rx="2" ry="2" />
+<text  x="861.56" y="159.5" ></text>
+</g>
+<g >
+<title>boost::asio::thread_pool::basic_executor_type&lt;std::allocator&lt;void&gt;, 0u&gt;::do_execute&lt;boost::asio::detail::binder0&lt;DOCTEST_ANON_FUNC_2 (23,538,500,000 samples, 39.17%)</title><rect x="171.1" y="677" width="462.3" height="15.0" fill="rgb(217,55,13)" rx="2" ry="2" />
+<text  x="174.13" y="687.5" >boost::asio::thread_pool::basic_executor_type&lt;std::allocator&lt;vo..</text>
+</g>
+<g >
+<title>__mem_cgroup_charge (12,500,000 samples, 0.02%)</title><rect x="1188.5" y="773" width="0.2" height="15.0" fill="rgb(218,60,14)" rx="2" ry="2" />
+<text  x="1191.48" y="783.5" ></text>
+</g>
+<g >
+<title>path_lookupat (46,000,000 samples, 0.08%)</title><rect x="10.9" y="725" width="0.9" height="15.0" fill="rgb(250,208,49)" rx="2" ry="2" />
+<text  x="13.91" y="735.5" ></text>
+</g>
+<g >
+<title>up_read (28,000,000 samples, 0.05%)</title><rect x="1091.0" y="805" width="0.6" height="15.0" fill="rgb(209,18,4)" rx="2" ry="2" />
+<text  x="1094.01" y="815.5" ></text>
+</g>
+<g >
+<title>std::visit_format_arg&lt;std::__format::_Formatting_scanner&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt;::_M_format_arg (24,750,000 samples, 0.04%)</title><rect x="857.1" y="133" width="0.5" height="15.0" fill="rgb(244,183,43)" rx="2" ry="2" />
+<text  x="860.10" y="143.5" ></text>
+</g>
+<g >
+<title>kernel_init_free_pages.part.0 (145,500,000 samples, 0.24%)</title><rect x="1185.6" y="741" width="2.9" height="15.0" fill="rgb(213,40,9)" rx="2" ry="2" />
+<text  x="1188.60" y="751.5" ></text>
+</g>
+<g >
+<title>find_vma (20,500,000 samples, 0.03%)</title><rect x="28.7" y="789" width="0.4" height="15.0" fill="rgb(213,37,8)" rx="2" ry="2" />
+<text  x="31.67" y="799.5" ></text>
+</g>
+<g >
+<title>_raw_spin_lock (45,000,000 samples, 0.07%)</title><rect x="1188.7" y="773" width="0.9" height="15.0" fill="rgb(239,160,38)" rx="2" ry="2" />
+<text  x="1191.74" y="783.5" ></text>
+</g>
+<g >
+<title>std::__format::_Formatting_scanner&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt;::_M_on_chars (22,000,000 samples, 0.04%)</title><rect x="863.1" y="677" width="0.4" height="15.0" fill="rgb(205,1,0)" rx="2" ry="2" />
+<text  x="866.07" y="687.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::binder0&lt;DOCTEST_ANON_FUNC_2 (139,500,000 samples, 0.23%)</title><rect x="138.8" y="693" width="2.7" height="15.0" fill="rgb(246,192,46)" rx="2" ry="2" />
+<text  x="141.79" y="703.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::conditionally_enabled_mutex::scoped_lock::unlock (3,351,000,000 samples, 5.58%)</title><rect x="506.3" y="629" width="65.8" height="15.0" fill="rgb(216,52,12)" rx="2" ry="2" />
+<text  x="509.30" y="639.5" >boost::..</text>
+</g>
+<g >
+<title>boost::asio::get_associated_allocator&lt;DOCTEST_ANON_FUNC_2 (179,500,000 samples, 0.30%)</title><rect x="769.9" y="709" width="3.5" height="15.0" fill="rgb(239,157,37)" rx="2" ry="2" />
+<text  x="772.89" y="719.5" ></text>
+</g>
+<g >
+<title>boost::asio::thread_pool::basic_executor_type&lt;std::allocator&lt;void&gt;, 0u&gt;::basic_executor_type (280,250,000 samples, 0.47%)</title><rect x="760.9" y="661" width="5.5" height="15.0" fill="rgb(242,171,41)" rx="2" ry="2" />
+<text  x="763.86" y="671.5" ></text>
+</g>
+<g >
+<title>std::__format::_Formatting_scanner&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt;::_M_format_arg (405,500,000 samples, 0.67%)</title><rect x="852.5" y="581" width="7.9" height="15.0" fill="rgb(229,112,26)" rx="2" ry="2" />
+<text  x="855.46" y="591.5" ></text>
+</g>
+<g >
+<title>unmap_vmas (509,000,000 samples, 0.85%)</title><rect x="1091.6" y="709" width="10.0" height="15.0" fill="rgb(243,176,42)" rx="2" ry="2" />
+<text  x="1094.62" y="719.5" ></text>
+</g>
+<g >
+<title>clear_page_erms (144,000,000 samples, 0.24%)</title><rect x="1185.6" y="725" width="2.9" height="15.0" fill="rgb(229,113,27)" rx="2" ry="2" />
+<text  x="1188.63" y="735.5" ></text>
+</g>
+<g >
+<title>pthread_mutex_unlock@@GLIBC_2.2.5 (1,977,750,000 samples, 3.29%)</title><rect x="529.0" y="597" width="38.9" height="15.0" fill="rgb(227,104,24)" rx="2" ry="2" />
+<text  x="532.02" y="607.5" >pth..</text>
+</g>
+<g >
+<title>__mod_node_page_state (10,500,000 samples, 0.02%)</title><rect x="1089.2" y="725" width="0.2" height="15.0" fill="rgb(213,38,9)" rx="2" ry="2" />
+<text  x="1092.23" y="735.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::conditionally_enabled_mutex::scoped_lock::~scoped_lock (200,250,000 samples, 0.33%)</title><rect x="207.7" y="661" width="3.9" height="15.0" fill="rgb(233,132,31)" rx="2" ry="2" />
+<text  x="210.68" y="671.5" ></text>
+</g>
+<g >
+<title>user_path_at_empty (67,000,000 samples, 0.11%)</title><rect x="10.9" y="757" width="1.3" height="15.0" fill="rgb(226,99,23)" rx="2" ry="2" />
+<text  x="13.91" y="767.5" ></text>
+</g>
+<g >
+<title>find_vma (11,750,000 samples, 0.02%)</title><rect x="940.6" y="805" width="0.3" height="15.0" fill="rgb(213,37,8)" rx="2" ry="2" />
+<text  x="943.64" y="815.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::conditionally_enabled_mutex::scoped_lock::scoped_lock (3,555,250,000 samples, 5.92%)</title><rect x="378.5" y="645" width="69.8" height="15.0" fill="rgb(247,196,47)" rx="2" ry="2" />
+<text  x="381.50" y="655.5" >boost::..</text>
+</g>
+<g >
+<title>ext4_getattr (7,750,000 samples, 0.01%)</title><rect x="10.7" y="757" width="0.1" height="15.0" fill="rgb(208,14,3)" rx="2" ry="2" />
+<text  x="13.69" y="767.5" ></text>
+</g>
+<g >
+<title>free_pages_and_swap_cache (17,000,000 samples, 0.03%)</title><rect x="1094.5" y="661" width="0.4" height="15.0" fill="rgb(222,82,19)" rx="2" ry="2" />
+<text  x="1097.53" y="671.5" ></text>
+</g>
+<g >
+<title>boost::asio::execution::allocator_t&lt;std::allocator&lt;void&gt; &gt;::value (96,250,000 samples, 0.16%)</title><rect x="695.4" y="661" width="1.9" height="15.0" fill="rgb(213,38,9)" rx="2" ry="2" />
+<text  x="698.43" y="671.5" ></text>
+</g>
+<g >
+<title>std::__format::_Formatting_scanner&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt;::_M_format_arg (254,000,000 samples, 0.42%)</title><rect x="854.7" y="357" width="5.0" height="15.0" fill="rgb(229,112,26)" rx="2" ry="2" />
+<text  x="857.74" y="367.5" ></text>
+</g>
+<g >
+<title>lru_cache_add (11,250,000 samples, 0.02%)</title><rect x="1189.6" y="773" width="0.3" height="15.0" fill="rgb(247,196,47)" rx="2" ry="2" />
+<text  x="1192.63" y="783.5" ></text>
+</g>
+<g >
+<title>std::__format::_Seq_sink&lt;std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt; &gt;::~_Seq_sink (9,750,000 samples, 0.02%)</title><rect x="862.6" y="709" width="0.2" height="15.0" fill="rgb(226,98,23)" rx="2" ry="2" />
+<text  x="865.62" y="719.5" ></text>
+</g>
+<g >
+<title>_IO_fwrite (7,250,000 samples, 0.01%)</title><rect x="850.6" y="725" width="0.1" height="15.0" fill="rgb(210,23,5)" rx="2" ry="2" />
+<text  x="853.55" y="735.5" ></text>
+</g>
+<g >
+<title>ankerl::nanobench::Bench::run&lt;DOCTEST_ANON_FUNC_2 (42,622,500,000 samples, 70.93%)</title><rect x="30.6" y="789" width="837.0" height="15.0" fill="rgb(247,195,46)" rx="2" ry="2" />
+<text  x="33.58" y="799.5" >ankerl::nanobench::Bench::run&lt;DOCTEST_ANON_FUNC_2</text>
+</g>
+<g >
+<title>std::__format::__formatter_chrono&lt;char&gt;::_M_format_to_ostream&lt;std::chrono::__detail::__local_time_fmt&lt;std::chrono::duration&lt;long, std::ratio&lt;1l, 1000000000l&gt; &gt; &gt;, std::basic_format_context&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt; &gt; (332,250,000 samples, 0.55%)</title><rect x="853.6" y="501" width="6.5" height="15.0" fill="rgb(250,208,49)" rx="2" ry="2" />
+<text  x="856.62" y="511.5" ></text>
+</g>
+<g >
+<title>boost::asio::detail::scheduler_operation::scheduler_operation (141,250,000 samples, 0.24%)</title><rect x="626.0" y="661" width="2.7" height="15.0" fill="rgb(251,214,51)" rx="2" ry="2" />
+<text  x="628.97" y="671.5" ></text>
+</g>
+<g >
+<title>entry_SYSCALL_64_after_hwframe (509,000,000 samples, 0.85%)</title><rect x="1091.6" y="869" width="10.0" height="15.0" fill="rgb(218,63,15)" rx="2" ry="2" />
+<text  x="1094.62" y="879.5" ></text>
+</g>
+<g >
+<title>vm_normal_page (8,500,000 samples, 0.01%)</title><rect x="1101.4" y="677" width="0.2" height="15.0" fill="rgb(209,20,4)" rx="2" ry="2" />
+<text  x="1104.45" y="687.5" ></text>
+</g>
+<g >
+<title>entry_SYSCALL_64_after_hwframe (96,250,000 samples, 0.16%)</title><rect x="10.5" y="821" width="1.9" height="15.0" fill="rgb(218,63,15)" rx="2" ry="2" />
+<text  x="13.49" y="831.5" ></text>
+</g>
+<g >
+<title>get_page_from_freelist (52,250,000 samples, 0.09%)</title><rect x="946.5" y="741" width="1.0" height="15.0" fill="rgb(252,218,52)" rx="2" ry="2" />
+<text  x="949.52" y="751.5" ></text>
+</g>
+<g >
+<title>main (42,622,750,000 samples, 70.93%)</title><rect x="30.6" y="853" width="837.0" height="15.0" fill="rgb(243,179,42)" rx="2" ry="2" />
+<text  x="33.57" y="863.5" >main</text>
+</g>
+<g >
+<title>page_remove_rmap (86,500,000 samples, 0.14%)</title><rect x="1092.8" y="677" width="1.7" height="15.0" fill="rgb(252,219,52)" rx="2" ry="2" />
+<text  x="1095.82" y="687.5" ></text>
+</g>
+<g >
+<title>get_unmapped_area (11,000,000 samples, 0.02%)</title><rect x="26.0" y="773" width="0.2" height="15.0" fill="rgb(234,134,32)" rx="2" ry="2" />
+<text  x="29.03" y="783.5" ></text>
+</g>
+<g >
+<title>std::__format::__formatter_chrono&lt;char&gt;::_M_R_T&lt;std::chrono::time_point&lt;std::chrono::_V2::system_clock, std::chrono::duration&lt;long, std::ratio&lt;1l, 1000000000l&gt; &gt; &gt;, std::basic_format_context&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt; &gt; (135,500,000 samples, 0.23%)</title><rect x="856.4" y="245" width="2.7" height="15.0" fill="rgb(225,95,22)" rx="2" ry="2" />
+<text  x="859.42" y="255.5" ></text>
+</g>
+<g >
+<title>std::__format::__formatter_chrono&lt;char&gt;::_M_format_to_ostream&lt;std::chrono::time_point&lt;std::chrono::local_t, std::chrono::duration&lt;long, std::ratio&lt;1l, 1000000000l&gt; &gt; &gt;, std::basic_format_context&lt;std::__format::_Sink_iter&lt;char&gt;, char&gt; &gt; (310,000,000 samples, 0.52%)</title><rect x="853.9" y="485" width="6.1" height="15.0" fill="rgb(218,63,15)" rx="2" ry="2" />
+<text  x="856.90" y="495.5" ></text>
+</g>
+<g >
+<title>boost::asio::thread_pool::basic_executor_type&lt;std::allocator&lt;void&gt;, 0u&gt;::require (142,750,000 samples, 0.24%)</title><rect x="675.3" y="677" width="2.8" height="15.0" fill="rgb(233,130,31)" rx="2" ry="2" />
+<text  x="678.34" y="687.5" ></text>
+</g>
+<g >
+<title>std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;::_M_set_length (7,750,000 samples, 0.01%)</title><rect x="862.6" y="613" width="0.2" height="15.0" fill="rgb(249,204,48)" rx="2" ry="2" />
+<text  x="865.65" y="623.5" ></text>
+</g>
+<g >
+<title>std::format_to&lt;std::__format::_Sink_iter&lt;char&gt;, char, long, unsigned int const&amp;&gt; (36,250,000 samples, 0.06%)</title><rect x="857.0" y="213" width="0.7" height="15.0" fill="rgb(229,112,26)" rx="2" ry="2" />
+<text  x="859.95" y="223.5" ></text>
+</g>
+<g >
+<title>std::formatter&lt;unsigned int, char&gt;::format&lt;std::__format::_Sink_iter&lt;char&gt; &gt; (5,250,000 samples, 0.01%)</title><rect x="860.3" y="565" width="0.1" height="15.0" fill="rgb(218,63,15)" rx="2" ry="2" />
+<text  x="863.32" y="575.5" ></text>
+</g>
+<g >
+<title>std::__cxx11::basic_string&lt;char, std::char_traits&lt;char&gt;, std::allocator&lt;char&gt; &gt;::~basic_string (5,250,000 samples, 0.01%)</title><rect x="851.4" y="709" width="0.1" height="15.0" fill="rgb(248,201,48)" rx="2" ry="2" />
+<text  x="854.35" y="719.5" ></text>
+</g>
+</g>
+</svg>

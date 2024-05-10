@@ -67,6 +67,13 @@ void ThreadPool::setThreadThreshold(int threshold) {
   }
 }
 
+void ThreadPool::setQueueWaitStrategy(wait_strategy::WaitStrategy* strategy) {
+  if (isRunning()) {
+    return;
+  }
+  TaskQueue_.set_waitStrategy(strategy);
+}
+
 void ThreadPool::start(int initThreadSize) {
   if (isRunning()) {
     minilog::log_warn("Thread Pool is started");

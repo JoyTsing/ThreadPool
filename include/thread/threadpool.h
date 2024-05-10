@@ -11,6 +11,7 @@
 
 #include "minilog/minilog.h"
 #include "queue/lockfree_queue.h"
+#include "queue/wait_strategy.h"
 namespace threadpool {
 namespace config {
 static constexpr const int TASK_MAX_THRESHOLD = 60;
@@ -48,6 +49,7 @@ class ThreadPool {
   ThreadPool(const ThreadPool&) = delete;
   ThreadPool& operator=(const ThreadPool&) = delete;
 
+  void setQueueWaitStrategy(wait_strategy::WaitStrategy* strategy);
   void setMode(PoolMode mod);
   void setTaskThreshold(int threshold);
   void setThreadThreshold(int threshold);
