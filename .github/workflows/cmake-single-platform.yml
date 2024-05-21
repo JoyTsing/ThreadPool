@@ -27,7 +27,7 @@ jobs:
       run:  |
         git submodule init && git submodule update
     - name: Environment
-      working-directory: ${{github.workspace}}/build
+      working-directory: ${{github.workspace}}
       shell: bash
       run:  |
         apt install libboost-dev binutils-dev libdwarf-dev libdwarf-dev
@@ -36,7 +36,7 @@ jobs:
       working-directory: ${{github.workspace}}
       shell: bash
       run:  |
-        ./build.sh
+        ${{github.workspace}}/build.sh
     - name: Test
       working-directory: ${{github.workspace}}/build/test
       shell: bash
