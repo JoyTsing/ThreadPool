@@ -53,7 +53,7 @@ jobs:
         ./bootstrap.sh
         ./b2
         sudo ./b2 install
-        ldconfig -v | grep boost
+        sudo ldconfig -v | grep boost
     
     ########################################
     #                Building              #
