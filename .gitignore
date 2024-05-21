@@ -37,8 +37,10 @@
 
 # End of https://www.toptal.com/developers/gitignore/api/c++
 
+# user-settings
 .cache
-build/
 .vscode/
+
+# output
+build/
 log/
-third_party/

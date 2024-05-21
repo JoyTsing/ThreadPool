@@ -153,10 +153,9 @@ void ThreadPool::newThread(int threadid) {
       notFull_.notify_all();
     }
     // 执行任务
-    if (task != nullptr) {
-      // minilog::log_info("tid: {} do task", tid);
-      task();
-    }
+    // minilog::log_info("tid: {} do task", tid);
+    // TODO: should Check task is empty?
+    task();
 
     idleThreadSize_++;
     baseline = std::chrono::high_resolution_clock::now();  // 更新时间

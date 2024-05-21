@@ -9,6 +9,7 @@
 #include <thread>
 #include <unordered_map>
 
+#include "function/function.h"
 #include "minilog/minilog.h"
 #include "queue/lockfree_queue.h"
 #include "queue/wait_strategy.h"
@@ -26,7 +27,7 @@ enum class PoolMode : uint8_t {
 
 class Thread {
  public:
-  using Task = std::function<void(int)>;  // 任务类型
+  using Task = Function<void(int)>;  // 任务类型
   Thread(Task func);
   ~Thread() = default;
   void start();
@@ -42,7 +43,7 @@ class Thread {
 
 class ThreadPool {
  public:
-  using Task = std::function<void()>;
+  using Task = Function<void()>;
   ThreadPool();
   ~ThreadPool();
   // non-copy

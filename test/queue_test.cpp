@@ -9,6 +9,7 @@
 #include <iostream>
 #include <thread>
 
+#include "function/function.h"
 #include "minilog/minilog.h"
 #include "queue/lockfree_queue.h"
 #include "queue/wait_strategy.h"
@@ -32,7 +33,7 @@ class ThreadPool {
       // 功能是 从任务队列中获取任务，并执行任务的函数对象
       workers_.emplace_back([this] {
         while (!stop_) {
-          std::function<void()> task;
+          Function<void()> task;
           if (task_queue_.wait_dequeue(&task)) {
             task();
           }
@@ -75,7 +76,7 @@ class ThreadPool {
 
  private:
   std::vector<std::thread> workers_;
-  BoundedQueue<std::function<void()>> task_queue_;
+  BoundedQueue<Function<void()>> task_queue_;
   std::atomic_bool stop_;
 };
 
