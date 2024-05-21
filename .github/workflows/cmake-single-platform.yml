@@ -30,7 +30,7 @@ jobs:
       working-directory: ${{github.workspace}}
       shell: bash
       run:  |
-        sudo apt install libboost-all-dev binutils-dev libdwarf-dev libdwarf-dev cmake
+        sudo apt install binutils-dev libdwarf-dev libdwarf-dev cmake
     - name: install GCC13
       shell:  bash
       run:  |
@@ -40,9 +40,21 @@ jobs:
         sudo update-alternatives --install `which g++` g++ `which g++-13` 99
         
     - name: '[Linux] Verifying installed g++ version'
+      shell:  bash
       run: |
           g++ --version
-
+          
+    - name: install boost
+      shell:  bash
+      working-directory: /tmp/
+      run: |
+        wget  https://boostorg.jfrog.io/artifactory/main/release/1.85.0/source/boost_1_85_0.tar.gz
+        tar -zxvf boost_1_85_0.tar.gz && cd boost_1_85_0
+        ./bootstrap.sh
+        ./b2
+        sudo ./b2 install
+        ldconfig -v | grep boost
+    
     ########################################
     #                Building              #
     ########################################
