@@ -30,7 +30,7 @@ jobs:
       working-directory: ${{github.workspace}}
       shell: bash
       run:  |
-        sudo apt install libboost-dev binutils-dev libdwarf-dev libdwarf-dev cmake
+        sudo apt install libboost-all-dev binutils-dev libdwarf-dev libdwarf-dev cmake
     - name: install GCC13
       shell:  bash
       run:  |
