@@ -21,6 +21,7 @@ Quick start:
 * 实现可更换等待策略的无锁队列
 * 可拓展的线程池本体
 * 通过perf分析性能
+* 通过git action进行CI/CD
 * ...
 
 ## Bench
