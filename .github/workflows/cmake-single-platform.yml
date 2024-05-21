@@ -30,7 +30,7 @@ jobs:
       working-directory: ${{github.workspace}}
       shell: bash
       run:  |
-        sudo apt install libboost-dev binutils-dev libdwarf-dev libdwarf-dev
+        sudo apt install libboost-dev binutils-dev libdwarf-dev libdwarf-dev g++-13 gcc-13 cmake
     - name: Build
       # Build your program with the given configuration
       working-directory: ${{github.workspace}}
