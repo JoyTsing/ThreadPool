@@ -9,6 +9,8 @@
 
 void func_hello(int i) { printf("#%d Hello\n", i); }
 
+int func_add1(int i) { return i + 1; }
+
 void func_swap(int& a, int& b) {
   int tmp = a;
   a = b;
@@ -17,13 +19,14 @@ void func_swap(int& a, int& b) {
 
 // NOLINTNEXTLINE
 TEST_CASE("function test") {
-  auto test = [](Function<void(int)> func) {
-    for (int i = 0; i < 10; i++) {
-      func(i);
+  auto test = [](Function<int(int)> func) {
+    for (int i = 0; i < 10000; i++) {
+      int res = func(i);
+      CHECK(res == i + 1);
     }
   };
-  ankerl::nanobench::Bench().minEpochIterations(1).run(
-      "function test hello world", [&]() { test(func_hello); });
+  ankerl::nanobench::Bench().minEpochIterations(200).run(
+      "function test add", [&]() { test(func_add1); });
 }
 
 // NOLINTNEXTLINE
@@ -37,6 +40,6 @@ TEST_CASE("function test") {
       CHECK(b == should_b);
     }
   };
-  ankerl::nanobench::Bench().minEpochIterations(500).run(
-      "function test2", [&]() { test(func_swap); });
+  ankerl::nanobench::Bench().minEpochIterations(200).run(
+      "function test swap", [&]() { test(func_swap); });
 }
