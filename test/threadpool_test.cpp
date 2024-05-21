@@ -125,6 +125,27 @@ TEST_CASE("thread-pool test1") {
       });
 }
 
+// NOLINTNEXTLINE
+TEST_CASE("thread-pool test1") {
+  threadpool::ThreadPool pool;
+  minilog::set_log_level(minilog::log_level::warn);
+  pool.setMode(threadpool::PoolMode::MODE_CACHED);
+  pool.setQueueWaitStrategy(new wait_strategy::YieldWaitStrategy());
+  pool.start();
+  int iter = 0;
+  ankerl::nanobench::Bench().minEpochIterations(10).run(
+      "[test1] thread-pool mode cached speed test", [&]() {
+        for (int i = 0; i < 10000; i++) {
+          pool.submit([i]() {
+            std::ostringstream ss;
+            ss << "hello world" << i;
+            return ss.str();
+          });
+        }
+        // minilog::log_warn("epoch {}", iter++);
+      });
+}
+
 /**
  * @brief test2
  *

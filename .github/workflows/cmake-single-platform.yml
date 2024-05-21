@@ -77,7 +77,7 @@ jobs:
       run:  |
         ./function_test
         
-    - name: Test-function
+    - name: Test-combine_unit
       working-directory: ${{github.workspace}}/build/test
       shell: bash
       run:  |
