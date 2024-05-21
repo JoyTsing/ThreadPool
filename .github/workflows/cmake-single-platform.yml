@@ -36,8 +36,8 @@ jobs:
       run:  |
         sudo add-apt-repository ppa:ubuntu-toolchain-r/test
         sudo apt update && sudo apt-get install gcc-13 g++-13
-        sudo update-alternatives --install `which gcc` gcc `which gcc-13`
-        sudo update-alternatives --install `which g++` g++ `which g++-13`
+        sudo update-alternatives --install `which gcc` gcc `which gcc-13` 99
+        sudo update-alternatives --install `which g++` g++ `which g++-13` 99
         
     - name: '[Linux] Verifying installed g++ version'
       run: |
