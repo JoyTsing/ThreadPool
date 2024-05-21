@@ -35,13 +35,13 @@ jobs:
       shell:  bash
       run:  |
         sudo add-apt-repository ppa:ubuntu-toolchain-r/test
-        sudo apt update
-        sudo apt-get install gcc-13 g++-13
-       
-       # Make sure ${CC} works and we don't use the $PATH one
+        sudo apt update && sudo apt-get install gcc-13 g++-13
+        sudo update-alternatives --install `which gcc` gcc `which gcc-13`
+        sudo update-alternatives --install `which g++` g++ `which g++-13`
+        
     - name: '[Linux] Verifying installed g++ version'
       run: |
-          g++ --v
+          g++ --version
 
     ########################################
     #                Building              #
@@ -52,6 +52,7 @@ jobs:
       shell: bash
       run:  |
         ${{github.workspace}}/build.sh
+        
     - name: Test
       working-directory: ${{github.workspace}}/build/test
       shell: bash
