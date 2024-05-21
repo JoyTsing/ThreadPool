@@ -9,4 +9,4 @@
 * 通过perf分析性能
 * ...
 
-![bench](./img/bench.png)
+![bench](img/bench.png)
