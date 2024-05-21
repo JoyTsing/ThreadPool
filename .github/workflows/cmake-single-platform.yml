@@ -30,7 +30,22 @@ jobs:
       working-directory: ${{github.workspace}}
       shell: bash
       run:  |
-        sudo apt install libboost-dev binutils-dev libdwarf-dev libdwarf-dev g++-13 gcc-13 cmake
+        sudo apt install libboost-dev binutils-dev libdwarf-dev libdwarf-dev cmake
+    - name: install GCC13
+      shell:  bash
+      run:  |
+        sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+        sudo apt update
+        sudo apt-get install gcc-13 g++-13
+       
+       # Make sure ${CC} works and we don't use the $PATH one
+    - name: '[Linux] Verifying installed g++ version'
+      run: |
+          g++ --v
+
+    ########################################
+    #                Building              #
+    ########################################
     - name: Build
       # Build your program with the given configuration
       working-directory: ${{github.workspace}}
