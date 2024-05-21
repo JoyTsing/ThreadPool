@@ -65,10 +65,28 @@ jobs:
       run:  |
         ${{github.workspace}}/build.sh
         
-    - name: Test
+    - name: Test-queue
       working-directory: ${{github.workspace}}/build/test
       shell: bash
       run:  |
-        ./queue_test && ./function_test && combine_unit_test && threadpool_test
+         ./queue_test
+         
+    - name: Test-function
+      working-directory: ${{github.workspace}}/build/test
+      shell: bash
+      run:  |
+        ./function_test
+        
+    - name: Test-function
+      working-directory: ${{github.workspace}}/build/test
+      shell: bash
+      run:  |
+        ./combine_unit_test 
+        
+    - name: Test-threadpool_test
+      working-directory: ${{github.workspace}}/build/test
+      shell: bash
+      run:  |
+        ./threadpool_test
 
 
