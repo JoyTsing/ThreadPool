@@ -13,7 +13,7 @@ env:
   BUILD_TYPE: Release
 
 jobs:
-  build:
+  Environment:
     # The CMake configure and build commands are platform agnostic and should work equally well on Windows or Mac.
     # You can convert this to a matrix build if you need cross-platform coverage.
     # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
@@ -56,21 +56,34 @@ jobs:
         sudo ldconfig -v | grep boost
     
     ########################################
-    #                Building              #
+    #              Building                #
     ########################################
+  Build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
     - name: Build
       # Build your program with the given configuration
       working-directory: ${{github.workspace}}
       shell: bash
       run:  |
         ${{github.workspace}}/build.sh
-        
+
+    ########################################
+    #               Testing               #
+    ########################################
+  Test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
     - name: Test-queue
       working-directory: ${{github.workspace}}/build/test
       shell: bash
       run:  |
-         ./queue_test
-         
+        ./queue_test
+
     - name: Test-function
       working-directory: ${{github.workspace}}/build/test
       shell: bash
