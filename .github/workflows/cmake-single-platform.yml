@@ -73,6 +73,8 @@ jobs:
           build/test/
           !build/test/CMakeFiles/*
           !build/test/cmake_install.cmake
+          !build/test/Makefile
+
 
 
     ########################################
@@ -100,9 +102,10 @@ jobs:
       
     - uses: actions/checkout@v4
     - name: Test-queue
-      working-directory: ${{github.workspace}}/build/test
+      working-directory: build/test
       shell: bash
       run:  |
+        ls -al
         ./queue_test
 
   Test-function:
@@ -123,7 +126,7 @@ jobs:
 
     - uses: actions/checkout@v4
     - name: Test-function
-      working-directory: ${{github.workspace}}/build/test
+      working-directory: build/test
       shell: bash
       run:  |
         ./function_test
@@ -146,7 +149,7 @@ jobs:
 
     - uses: actions/checkout@v4       
     - name: Test-combine_unit
-      working-directory: ${{github.workspace}}/build/test
+      working-directory: build/test
       shell: bash
       run:  |
         ./combine_unit_test 
@@ -169,7 +172,7 @@ jobs:
 
     - uses: actions/checkout@v4   
     - name: Test-threadpool
-      working-directory: ${{github.workspace}}/build/test
+      working-directory: build/test
       shell: bash
       run:  |
         ./threadpool_test
