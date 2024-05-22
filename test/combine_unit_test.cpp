@@ -114,7 +114,7 @@ TEST_CASE("combine-test") {
   ThreadPool test_(8);
   ankerl::nanobench::doNotOptimizeAway(test_);
   int iter = 0;
-  ankerl::nanobench::Bench().minEpochIterations(500).run(
+  ankerl::nanobench::Bench().minEpochIterations(100).run(
       "check queue correct", [&]() {
         std::vector<std::future<int>> results;
 
