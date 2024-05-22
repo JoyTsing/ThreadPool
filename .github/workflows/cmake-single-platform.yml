@@ -70,9 +70,7 @@ jobs:
       with:
         name: packing-tests
         path: |
-          ${{github.workspace}}/build/test
-          !${{github.workspace}}/build/test/CMakeFiles
-          !${{github.workspace}}/build/test/cmake_install.cmake
+          ${{github.workspace}}/build/test/*_test
 
     ########################################
     #               Testing               #
@@ -81,7 +79,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: Environment
     steps:
-    - uses: actions/checkout@v4
     - name: mkdir
       working-directory: ${{github.workspace}}
       shell: bash
@@ -93,20 +90,22 @@ jobs:
       with:
         name: packing-tests
         path: ${{github.workspace}}/build/test
-        
+
+    - name: Display structure of downloaded files
+      shell: bash
+      run: ls -R your/destination/dir
+      
     - uses: actions/checkout@v4
     - name: Test-queue
       working-directory: ${{github.workspace}}/build/test
       shell: bash
       run:  |
-        ls -ls
         ./queue_test
 
   Test-function:
     runs-on: ubuntu-latest
     needs: Environment
     steps:
-    - uses: actions/checkout@v4
     - name: mkdir
       working-directory: ${{github.workspace}}
       shell: bash
@@ -116,6 +115,7 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: packing-tests
+        path: ${{github.workspace}}/build/test/
 
     - uses: actions/checkout@v4
     - name: Test-function
@@ -128,7 +128,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: Environment
     steps:
-    - uses: actions/checkout@v4
     - name: mkdir
       working-directory: ${{github.workspace}}
       shell: bash
@@ -139,6 +138,7 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: packing-tests
+        path: ${{github.workspace}}/build/test/
 
     - uses: actions/checkout@v4       
     - name: Test-combine_unit
@@ -151,7 +151,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: Environment
     steps:
-    - uses: actions/checkout@v4
     - name: mkdir
       working-directory: ${{github.workspace}}
       shell: bash
@@ -162,6 +161,7 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: packing-tests
+        path: ${{github.workspace}}/build/test/
 
     - uses: actions/checkout@v4   
     - name: Test-threadpool
