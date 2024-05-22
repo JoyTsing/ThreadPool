@@ -21,11 +21,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: submodule
-      working-directory: ${{github.workspace}}
-      shell: bash
-      run:  |
-        git submodule init && git submodule update
     - name: Environment
       working-directory: ${{github.workspace}}
       shell: bash
@@ -63,6 +58,12 @@ jobs:
     needs: Environment
     steps:
     - uses: actions/checkout@v4
+    - name: submodule
+      shell: bash
+      working-directory: ${{github.workspace}}
+      run:  |
+        git submodule init && git submodule update
+        
     - name: Build
       # Build your program with the given configuration
       working-directory: ${{github.workspace}}
