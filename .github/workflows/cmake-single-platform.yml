@@ -83,7 +83,7 @@ jobs:
       run:  |
         ./combine_unit_test 
         
-    - name: Test-threadpool_test
+    - name: Test-threadpool
       working-directory: ${{github.workspace}}/build/test
       shell: bash
       run:  |
