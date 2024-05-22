@@ -70,7 +70,10 @@ jobs:
       with:
         name: packing-tests
         path: |
-          ${{github.workspace}}/build/test/*_test
+          build/test/
+          !build/test/CMakeFiles/*
+          !build/test/cmake_install.cmake
+
 
     ########################################
     #               Testing               #
@@ -89,11 +92,11 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: packing-tests
-        path: ${{github.workspace}}/build/test
+        path: build/test/
 
     - name: Display structure of downloaded files
       shell: bash
-      run: ls -R your/destination/dir
+      run: ls -R build/test/
       
     - uses: actions/checkout@v4
     - name: Test-queue
@@ -111,11 +114,12 @@ jobs:
       shell: bash
       run:  |
         mkdir build/test/ -p
+
     - name: Download artifacts
       uses: actions/download-artifact@v4
       with:
         name: packing-tests
-        path: ${{github.workspace}}/build/test/
+        path: build/test/
 
     - uses: actions/checkout@v4
     - name: Test-function
@@ -138,7 +142,7 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: packing-tests
-        path: ${{github.workspace}}/build/test/
+        path: build/test/
 
     - uses: actions/checkout@v4       
     - name: Test-combine_unit
@@ -161,7 +165,7 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: packing-tests
-        path: ${{github.workspace}}/build/test/
+        path: build/test/
 
     - uses: actions/checkout@v4   
     - name: Test-threadpool
