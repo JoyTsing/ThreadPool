@@ -21,7 +21,7 @@ class ThreadPool {
       : stop_(false) {
     // 初始化失败抛出异常
     if (!task_queue_.Init(max_task_num,
-                          new wait_strategy::TimeoutBlockStrategy(2000))) {
+                          new wait_strategy::YieldWaitStrategy())) {
       throw std::runtime_error("Task queue init failed");
     }
 
@@ -118,12 +118,12 @@ TEST_CASE("lock-free queue test") {
   Test_ThreadPool test_;
   ankerl::nanobench::doNotOptimizeAway(test_);
   int iter = 0;
-  ankerl::nanobench::Bench().minEpochIterations(10).run("lock-free queue test",
-                                                        [&]() {
-                                                          test_.test();
-                                                          // minilog::log_warn("epoch
-                                                          // {}", iter++);
-                                                        });
+  ankerl::nanobench::Bench().minEpochIterations(500).run("lock-free queue test",
+                                                         [&]() {
+                                                           test_.test();
+                                                           // minilog::log_warn("epoch
+                                                           // {}", iter++);
+                                                         });
 }
 
 // NOLINTNEXTLINE
@@ -131,7 +131,7 @@ TEST_CASE("lock-free queue test") {
   Test_ThreadPool test_;
   ankerl::nanobench::doNotOptimizeAway(test_);
   int iter = 0;
-  ankerl::nanobench::Bench().minEpochIterations(10).run(
+  ankerl::nanobench::Bench().minEpochIterations(500).run(
       "memory and performance test", [&]() {
         test_.test2();
         // minilog::log_warn("epoch {}", iter++);
@@ -143,7 +143,7 @@ TEST_CASE("lock-free queue test") {
   ThreadPool test_(8);
   ankerl::nanobench::doNotOptimizeAway(test_);
   int iter = 0;
-  ankerl::nanobench::Bench().minEpochIterations(10).run(
+  ankerl::nanobench::Bench().minEpochIterations(500).run(
       "check queue correct", [&]() {
         std::vector<std::future<int>> results;
 

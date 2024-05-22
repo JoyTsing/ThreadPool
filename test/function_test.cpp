@@ -25,7 +25,7 @@ TEST_CASE("function test") {
       CHECK(res == i + 1);
     }
   };
-  ankerl::nanobench::Bench().minEpochIterations(200).run(
+  ankerl::nanobench::Bench().minEpochIterations(1000).run(
       "function test add", [&]() { test(func_add1); });
 }
 
@@ -40,6 +40,6 @@ TEST_CASE("function test") {
       CHECK(b == should_b);
     }
   };
-  ankerl::nanobench::Bench().minEpochIterations(200).run(
+  ankerl::nanobench::Bench().minEpochIterations(1000).run(
       "function test swap", [&]() { test(func_swap); });
 }

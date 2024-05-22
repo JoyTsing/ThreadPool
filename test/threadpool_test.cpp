@@ -50,7 +50,7 @@ TEST_CASE("thread-pool test1") {
   minilog::set_log_level(minilog::log_level::warn);
   int iter = 0;
   // 100 times faster than mine, LOL
-  ankerl::nanobench::Bench().minEpochIterations(10).run(
+  ankerl::nanobench::Bench().minEpochIterations(100).run(
       "[test1] boost::asio::thread_pool speed test", [&]() {
         for (int i = 0; i < 10000; i++) {
           boost::asio::post(pool, [i]() {
@@ -71,7 +71,7 @@ TEST_CASE("thread-pool test1") {
   pool.setMode(threadpool::PoolMode::MODE_FIXED);
   pool.start();
   int iter = 0;
-  ankerl::nanobench::Bench().minEpochIterations(10).run(
+  ankerl::nanobench::Bench().minEpochIterations(100).run(
       "[test1] thread-pool mode fixed speed test", [&]() {
         for (int i = 0; i < 10000; i++) {
           pool.submit([i]() {
@@ -92,7 +92,7 @@ TEST_CASE("thread-pool test1") {
   pool.setQueueWaitStrategy(new wait_strategy::YieldWaitStrategy());
   pool.start();
   int iter = 0;
-  ankerl::nanobench::Bench().minEpochIterations(10).run(
+  ankerl::nanobench::Bench().minEpochIterations(100).run(
       "[test1] thread-pool mode fixed yield-waitStrategy speed test", [&]() {
         for (int i = 0; i < 10000; i++) {
           pool.submit([i]() {
@@ -112,7 +112,7 @@ TEST_CASE("thread-pool test1") {
   pool.setMode(threadpool::PoolMode::MODE_CACHED);
   pool.start();
   int iter = 0;
-  ankerl::nanobench::Bench().minEpochIterations(10).run(
+  ankerl::nanobench::Bench().minEpochIterations(100).run(
       "[test1] thread-pool mode cached speed test", [&]() {
         for (int i = 0; i < 10000; i++) {
           pool.submit([i]() {
@@ -133,7 +133,7 @@ TEST_CASE("thread-pool test1") {
   pool.setQueueWaitStrategy(new wait_strategy::YieldWaitStrategy());
   pool.start();
   int iter = 0;
-  ankerl::nanobench::Bench().minEpochIterations(10).run(
+  ankerl::nanobench::Bench().minEpochIterations(100).run(
       "[test1] thread-pool mode cached speed test", [&]() {
         for (int i = 0; i < 10000; i++) {
           pool.submit([i]() {
@@ -158,7 +158,7 @@ TEST_CASE("thread-pool test2") {
   pool.setMode(threadpool::PoolMode::MODE_FIXED);
   pool.start();
   int iter = 0;
-  ankerl::nanobench::Bench().minEpochIterations(10).run(
+  ankerl::nanobench::Bench().minEpochIterations(100).run(
       "[test2] thread-pool mode FIXED performance test", [&]() {
         std::vector<std::future<int>> results;
 
@@ -182,7 +182,7 @@ TEST_CASE("thread-pool test2") {
   pool.setQueueWaitStrategy(new wait_strategy::YieldWaitStrategy());
   pool.start();
   int iter = 0;
-  ankerl::nanobench::Bench().minEpochIterations(10).run(
+  ankerl::nanobench::Bench().minEpochIterations(100).run(
       "[test2] thread-pool mode FIXED Yield WaitStrategy performance test",
       [&]() {
         std::vector<std::future<int>> results;
@@ -206,7 +206,7 @@ TEST_CASE("thread-pool test2") {
   pool.setMode(threadpool::PoolMode::MODE_CACHED);
   pool.start();
   int iter = 0;
-  ankerl::nanobench::Bench().minEpochIterations(10).run(
+  ankerl::nanobench::Bench().minEpochIterations(100).run(
       "[test2] thread-pool mode cached performance test", [&]() {
         std::vector<std::future<int>> results;
 
@@ -230,7 +230,7 @@ TEST_CASE("thread-pool test2") {
   pool.setQueueWaitStrategy(new wait_strategy::YieldWaitStrategy());
   pool.start();
   int iter = 0;
-  ankerl::nanobench::Bench().minEpochIterations(10).run(
+  ankerl::nanobench::Bench().minEpochIterations(100).run(
       "[test2] thread-pool mode cached yield-waitStrategy performance test",
       [&]() {
         std::vector<std::future<int>> results;
@@ -255,7 +255,7 @@ TEST_CASE("thread-pool test2") {
   pool.setQueueWaitStrategy(new wait_strategy::TimeoutBlockStrategy());
   pool.start();
   int iter = 0;
-  ankerl::nanobench::Bench().minEpochIterations(10).run(
+  ankerl::nanobench::Bench().minEpochIterations(100).run(
       "[test2] thread-pool mode cached performance test", [&]() {
         std::vector<std::future<int>> results;
 
@@ -297,7 +297,7 @@ TEST_CASE("thread-pool test3") {
   boost::asio::thread_pool pool(5);
   minilog::set_log_level(minilog::log_level::warn);
   int iter = 0;
-  ankerl::nanobench::Bench().minEpochIterations(500).run(
+  ankerl::nanobench::Bench().minEpochIterations(5000).run(
       "[test3] boost::asio::thread_pool performance test3",
       [&]() { boost::asio::post(pool, [] { test(func_swap); }); });
 }
@@ -309,7 +309,7 @@ TEST_CASE("thread-pool test3") {
   pool.setMode(threadpool::PoolMode::MODE_FIXED);
   pool.start();
   int iter = 0;
-  ankerl::nanobench::Bench().minEpochIterations(500).run(
+  ankerl::nanobench::Bench().minEpochIterations(5000).run(
       "[test3] thread-pool mode FIXED performance test",
       [&]() { pool.submit(test, func_swap); });
 }
@@ -322,7 +322,7 @@ TEST_CASE("thread-pool test3") {
   pool.setQueueWaitStrategy(new wait_strategy::YieldWaitStrategy());
   pool.start();
   int iter = 0;
-  ankerl::nanobench::Bench().minEpochIterations(500).run(
+  ankerl::nanobench::Bench().minEpochIterations(5000).run(
       "[test3] thread-pool fixed mode YieldWaitStrategy FIXED performance test",
       [&]() { pool.submit(test, func_swap); });
 }
@@ -334,7 +334,7 @@ TEST_CASE("thread-pool test3") {
   pool.setMode(threadpool::PoolMode::MODE_CACHED);
   pool.start();
   int iter = 0;
-  ankerl::nanobench::Bench().minEpochIterations(500).run(
+  ankerl::nanobench::Bench().minEpochIterations(5000).run(
       "[test3] thread-pool cached mode performance test",
       [&]() { pool.submit(test, func_swap); });
 }
@@ -347,7 +347,7 @@ TEST_CASE("thread-pool test3") {
   pool.setQueueWaitStrategy(new wait_strategy::YieldWaitStrategy());
   pool.start();
   int iter = 0;
-  ankerl::nanobench::Bench().minEpochIterations(500).run(
+  ankerl::nanobench::Bench().minEpochIterations(5000).run(
       "[test3] thread-pool cached mode Yield-WaitStrategy performance test",
       [&]() { pool.submit(test, func_swap); });
 }
