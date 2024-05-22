@@ -21,11 +21,15 @@ Quick start:
 * 实现可更换等待策略的无锁队列
 * 可拓展的线程池本体
 * 通过perf分析性能
-* 通过git action进行CI/CD
+* 通过git action进行CI
 * ...
 
 ## Bench
 
-一个简单的 bench:
+本地的一个简单的 bench:
 
-![bench](img/bench.png)
+![local-bench](img/bench.png)
+
+git actions上的bench:
+
+![bench](img/flow_bench.png)

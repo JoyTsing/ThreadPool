@@ -20,7 +20,7 @@ void func_swap(int& a, int& b) {
 // NOLINTNEXTLINE
 TEST_CASE("function test") {
   auto test = [](Function<int(int)> func) {
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < 30000; i++) {
       int res = func(i);
       CHECK(res == i + 1);
     }
@@ -32,7 +32,7 @@ TEST_CASE("function test") {
 // NOLINTNEXTLINE
 TEST_CASE("function test") {
   auto test = [](std::function<int(int)> func) {
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < 30000; i++) {
       int res = func(i);
       CHECK(res == i + 1);
     }
@@ -44,7 +44,7 @@ TEST_CASE("function test") {
 // NOLINTNEXTLINE
 TEST_CASE("function test") {
   auto test = [](Function<void(int&, int&)> func) {
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < 30000; i++) {
       int should_a = i + 1, should_b = i;
       int a = i, b = i + 1;
       func(std::ref(a), std::ref(b));
@@ -59,7 +59,7 @@ TEST_CASE("function test") {
 // NOLINTNEXTLINE
 TEST_CASE("function test") {
   auto test = [](std::function<void(int&, int&)> func) {
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < 30000; i++) {
       int should_a = i + 1, should_b = i;
       int a = i, b = i + 1;
       func(std::ref(a), std::ref(b));

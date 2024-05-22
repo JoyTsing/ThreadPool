@@ -87,11 +87,11 @@ TEST_CASE("combine-test") {
       "check combine unit", [&]() {
         std::vector<std::future<int>> results;
 
-        for (int i = 0; i < 10000; i++) {
+        for (int i = 0; i < 30000; i++) {
           results.emplace_back(test_.Enqueue([](int i) { return i; }, i));
         }
 
-        for (int i = 0; i < 10000; i++) {
+        for (int i = 0; i < 30000; i++) {
           int res = results[i].get();
           CHECK(res == i);
         }
