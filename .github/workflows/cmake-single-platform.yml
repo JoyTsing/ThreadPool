@@ -102,6 +102,12 @@ jobs:
       run: |
         ls -R build/test/
     
+    - name: Change permission
+      working-directory: ${{github.workspace}}/build/test
+      shell: bash
+      run: |
+        chmod a+x ./queue_test
+    
     - name: Test-queue
       working-directory: ${{github.workspace}}/build/test
       shell: bash
@@ -123,6 +129,12 @@ jobs:
       with:
         name: packing-tests
         path: build/test/
+
+    - name: Change permission
+      working-directory: ${{github.workspace}}/build/test
+      shell: bash
+      run: |
+        chmod a+x ./function_test
 
     - name: Test-function
       working-directory: ${{github.workspace}}/build/test
@@ -146,6 +158,12 @@ jobs:
         name: packing-tests
         path: build/test/
 
+    - name: Change permission
+      working-directory: ${{github.workspace}}/build/test
+      shell: bash
+      run: |
+        chmod a+x ./combine_unit_test
+
     - name: Test-combine_unit
       working-directory: ${{github.workspace}}/build/test
       shell: bash
@@ -167,6 +185,12 @@ jobs:
       with:
         name: packing-tests
         path: build/test/
+
+    - name: Change permission
+      working-directory: ${{github.workspace}}/build/test
+      shell: bash
+      run: |
+        chmod a+x ./threadpool_test
  
     - name: Test-threadpool
       working-directory: ${{github.workspace}}/build/test
