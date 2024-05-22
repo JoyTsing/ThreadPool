@@ -118,14 +118,14 @@ TEST_CASE("combine-test") {
       "check queue correct", [&]() {
         std::vector<std::future<int>> results;
 
-        for (int i = 0; i < 10000; i++) {
+        for (int i = 0; i < 100000; i++) {
           results.emplace_back(test_.Enqueue([i]() { return i; }));
         }
 
-        for (int i = 0; i < 10000; i++) {
+        for (int i = 0; i < 100000; i++) {
           int res = results[i].get();
           CHECK(res == i);
         }
-        minilog::log_warn("epoch {}", iter++);
+        // minilog::log_warn("epoch {}", iter++);
       });
 }
