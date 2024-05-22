@@ -95,16 +95,25 @@ jobs:
       with:
         name: packing-tests
         path: build/test/
+  
+    - name: ls all
+      shell: bash
+      working-directory: ${{github.workspace}}
+      run: |
+        ls -al
 
     - name: Display structure of downloaded files
       shell: bash
-      run: ls -R build/test/
-      
+      run: |
+        pwd
+        ls -R build/test/
+    
     - uses: actions/checkout@v4
     - name: Test-queue
       working-directory: build/test
       shell: bash
       run:  |
+        pwd
         ls -al
         ./queue_test
 
