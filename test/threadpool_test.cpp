@@ -50,7 +50,7 @@ TEST_CASE("thread-pool test1") {
   minilog::set_log_level(minilog::log_level::warn);
   int iter = 0;
   // 100 times faster than mine, LOL
-  ankerl::nanobench::Bench().minEpochIterations(500).run(
+  ankerl::nanobench::Bench().minEpochIterations(200).run(
       "[test1] boost::asio::thread_pool speed test", [&]() {
         for (int i = 0; i < 10000; i++) {
           boost::asio::post(pool, [i]() {
@@ -71,7 +71,7 @@ TEST_CASE("thread-pool test1") {
   pool.setMode(threadpool::PoolMode::MODE_FIXED);
   pool.start();
   int iter = 0;
-  ankerl::nanobench::Bench().minEpochIterations(500).run(
+  ankerl::nanobench::Bench().minEpochIterations(200).run(
       "[test1] thread-pool mode fixed speed test", [&]() {
         for (int i = 0; i < 10000; i++) {
           pool.submit([i]() {
@@ -92,7 +92,7 @@ TEST_CASE("thread-pool test1") {
   pool.setQueueWaitStrategy(new wait_strategy::YieldWaitStrategy());
   pool.start();
   int iter = 0;
-  ankerl::nanobench::Bench().minEpochIterations(500).run(
+  ankerl::nanobench::Bench().minEpochIterations(200).run(
       "[test1] thread-pool mode fixed yield-waitStrategy speed test", [&]() {
         for (int i = 0; i < 10000; i++) {
           pool.submit([i]() {
@@ -112,7 +112,7 @@ TEST_CASE("thread-pool test1") {
   pool.setMode(threadpool::PoolMode::MODE_CACHED);
   pool.start();
   int iter = 0;
-  ankerl::nanobench::Bench().minEpochIterations(500).run(
+  ankerl::nanobench::Bench().minEpochIterations(200).run(
       "[test1] thread-pool mode cached speed test", [&]() {
         for (int i = 0; i < 10000; i++) {
           pool.submit([i]() {
@@ -133,7 +133,7 @@ TEST_CASE("thread-pool test1") {
   pool.setQueueWaitStrategy(new wait_strategy::YieldWaitStrategy());
   pool.start();
   int iter = 0;
-  ankerl::nanobench::Bench().minEpochIterations(500).run(
+  ankerl::nanobench::Bench().minEpochIterations(200).run(
       "[test1] thread-pool mode cached speed test", [&]() {
         for (int i = 0; i < 10000; i++) {
           pool.submit([i]() {
@@ -283,7 +283,7 @@ void func_swap(int& a, int& b) {
 }
 
 auto test = [](Function<void(int&, int&)> func) {
-  for (int i = 0; i < 10000; i++) {
+  for (int i = 0; i < 50000; i++) {
     int should_a = i + 1, should_b = i;
     int a = i, b = i + 1;
     func(std::ref(a), std::ref(b));
