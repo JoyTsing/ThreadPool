@@ -1,3 +1,4 @@
+
 # This starter workflow is for a CMake project running on a single platform. There is a different starter workflow if you need cross-platform coverage.
 # See: https://github.com/actions/starter-workflows/blob/main/ci/cmake-multi-platform.yml
 name: CMake on a single platform
@@ -13,7 +14,7 @@ env:
   BUILD_TYPE: Release
 
 jobs:
-  Build:
+  build:
     # The CMake configure and build commands are platform agnostic and should work equally well on Windows or Mac.
     # You can convert this to a matrix build if you need cross-platform coverage.
     # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
@@ -21,12 +22,17 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: Set up the libraries
+    - name: submodule
+      working-directory: ${{github.workspace}}
+      shell: bash
+      run:  |
+        git submodule init && git submodule update
+    - name: Environment
       working-directory: ${{github.workspace}}
       shell: bash
       run:  |
         sudo apt install binutils-dev libdwarf-dev libdwarf-dev cmake
-    - name: Install GCC-13
+    - name: install GCC13
       shell:  bash
       run:  |
         sudo add-apt-repository ppa:ubuntu-toolchain-r/test
@@ -34,12 +40,12 @@ jobs:
         sudo update-alternatives --install `which gcc` gcc `which gcc-13` 99
         sudo update-alternatives --install `which g++` g++ `which g++-13` 99
         
-    - name: 'Verifying installed g++ version'
+    - name: '[Linux] Verifying installed g++ version'
       shell:  bash
       run: |
           g++ --version
           
-    - name: Install Boost
+    - name: install boost
       shell:  bash
       working-directory: /tmp/
       run: |
@@ -51,148 +57,34 @@ jobs:
         sudo ldconfig -v | grep boost
     
     ########################################
-    #              Building                #
+    #                Building              #
     ########################################
-    - name: Init submodule
-      shell: bash
-      working-directory: ${{github.workspace}}
-      run:  |
-        git submodule init && git submodule update
-        
-    - name: Build the project
+    - name: Build
       # Build your program with the given configuration
       working-directory: ${{github.workspace}}
       shell: bash
       run:  |
         ${{github.workspace}}/build.sh
-    - name: Upload test artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: packing-tests
-        path: |
-          build/test/
-          !build/test/CMakeFiles/*
-          !build/test/cmake_install.cmake
-          !build/test/Makefile
-
-
-
-    ########################################
-    #               Testing               #
-    ########################################
-  Test-queue:
-    runs-on: ubuntu-latest
-    needs: Build
-    steps:
-    - name: mkdir
-      working-directory: ${{github.workspace}}
-      shell: bash
-      run:  |
-        mkdir build/test/ -p
-
-    - name: Download artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: packing-tests
-        path: build/test/
-  
-    - name: Display structure of downloaded files
-      working-directory: ${{github.workspace}}
-      shell: bash
-      run: |
-        ls -R build/test/
-    
-    - name: Change permission
-      working-directory: ${{github.workspace}}/build/test
-      shell: bash
-      run: |
-        chmod a+x ./queue_test
-    
+        
     - name: Test-queue
       working-directory: ${{github.workspace}}/build/test
       shell: bash
       run:  |
-        ./queue_test
-
-  Test-function:
-    runs-on: ubuntu-latest
-    needs: Build
-    steps:
-    - name: mkdir
-      working-directory: ${{github.workspace}}
-      shell: bash
-      run:  |
-        mkdir build/test/ -p
-
-    - name: Download artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: packing-tests
-        path: build/test/
-
-    - name: Change permission
-      working-directory: ${{github.workspace}}/build/test
-      shell: bash
-      run: |
-        chmod a+x ./function_test
-
+         ./queue_test
+         
     - name: Test-function
       working-directory: ${{github.workspace}}/build/test
       shell: bash
       run:  |
         ./function_test
-
-  Test-combine_unit:
-    runs-on: ubuntu-latest
-    needs: Build
-    steps:
-    - name: mkdir
-      working-directory: ${{github.workspace}}
-      shell: bash
-      run:  |
-        mkdir build/test/ -p  
-
-    - name: Download artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: packing-tests
-        path: build/test/
-
-    - name: Change permission
-      working-directory: ${{github.workspace}}/build/test
-      shell: bash
-      run: |
-        chmod a+x ./combine_unit_test
-
+        
     - name: Test-combine_unit
       working-directory: ${{github.workspace}}/build/test
       shell: bash
       run:  |
         ./combine_unit_test 
-
-  Test-threadpool:
-    runs-on: ubuntu-latest
-    needs: Build
-    steps:
-    - name: mkdir
-      working-directory: ${{github.workspace}}
-      shell: bash
-      run:  |
-        mkdir build/test/ -p
-
-    - name: Download artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: packing-tests
-        path: build/test/
-
-    - name: Change permission
-      working-directory: ${{github.workspace}}/build/test
-      shell: bash
-      run: |
-        chmod a+x ./threadpool_test
- 
-    - name: Test-threadpool
+        
+    - name: Test-threadpool_test
       working-directory: ${{github.workspace}}/build/test
       shell: bash
       run:  |
