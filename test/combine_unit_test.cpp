@@ -78,50 +78,20 @@ class ThreadPool {
   std::atomic_bool stop_;
 };
 
-class Test_ThreadPool {
- public:
-  void test() {
-    ThreadPool thread_pool(4);
-    std::vector<std::future<std::string>> results;
-
-    for (int i = 0; i < 10000; i++) {
-      results.emplace_back(thread_pool.Enqueue([i]() {
-        std::ostringstream ss;
-        ss << "hello world" << i;
-        return ss.str();
-      }));
-    }
-
-    for (auto &&result : results) {
-      result.get();
-    }
-  }
-  void test2() {
-    ThreadPool thread_pool(4);
-    for (int i = 0; i < 10000; i++) {
-      thread_pool.Enqueue([&]() {
-        int j = i + 1;
-        j *= j % (i + 1);
-      });
-    }
-    return;
-  }
-};
-
 // NOLINTNEXTLINE
 TEST_CASE("combine-test") {
   ThreadPool test_(8);
   ankerl::nanobench::doNotOptimizeAway(test_);
   int iter = 0;
-  ankerl::nanobench::Bench().minEpochIterations(50).run(
-      "check queue correct", [&]() {
+  ankerl::nanobench::Bench().minEpochIterations(10).run(
+      "check combine unit", [&]() {
         std::vector<std::future<int>> results;
 
-        for (int i = 0; i < 10000; i++) {
-          results.emplace_back(test_.Enqueue([i]() { return i; }));
+        for (int i = 0; i < 100000; i++) {
+          results.emplace_back(test_.Enqueue([](int i) { return i; }, i));
         }
 
-        for (int i = 0; i < 10000; i++) {
+        for (int i = 0; i < 100000; i++) {
           int res = results[i].get();
           CHECK(res == i);
         }
