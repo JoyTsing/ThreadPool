@@ -59,7 +59,7 @@ jobs:
     #              Building                #
     ########################################
   Build:
-    runs-on: ubuntu-latest
+    runs-on: Environment
 
     steps:
     - uses: actions/checkout@v4
@@ -73,8 +73,8 @@ jobs:
     ########################################
     #               Testing               #
     ########################################
-  Test:
-    runs-on: ubuntu-latest
+  Test-queue:
+    runs-on: Build
 
     steps:
     - uses: actions/checkout@v4
@@ -84,18 +84,33 @@ jobs:
       run:  |
         ./queue_test
 
+  Test-function:
+    runs-on: Build
+
+    steps:
+    - uses: actions/checkout@v4
     - name: Test-function
       working-directory: ${{github.workspace}}/build/test
       shell: bash
       run:  |
         ./function_test
-        
+
+  Test-combine_unit:
+    runs-on: Build
+
+    steps:
+    - uses: actions/checkout@v4       
     - name: Test-combine_unit
       working-directory: ${{github.workspace}}/build/test
       shell: bash
       run:  |
         ./combine_unit_test 
-        
+
+  Test-threadpool:
+    runs-on: Build
+
+    steps:
+    - uses: actions/checkout@v4   
     - name: Test-threadpool
       working-directory: ${{github.workspace}}/build/test
       shell: bash
