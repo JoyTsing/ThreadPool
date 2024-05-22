@@ -68,7 +68,7 @@ jobs:
     - name: Upload Tests
       uses: actions/upload-artifact@v4
       with:
-        name: packing tests
+        name: packing-tests
         path: |
           ${{github.workspace}}/build/test
           !${{github.workspace}}/build/test/CMakeFiles
@@ -81,6 +81,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: Environment
     steps:
+    - name: Download a single artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: packing-tests
+        
     - uses: actions/checkout@v4
     - name: Test-queue
       working-directory: ${{github.workspace}}/build/test
@@ -92,6 +97,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: Environment
     steps:
+    - name: Download a single artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: packing-tests
+
     - uses: actions/checkout@v4
     - name: Test-function
       working-directory: ${{github.workspace}}/build/test
@@ -103,6 +113,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: Environment
     steps:
+    - name: Download a single artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: packing-tests
+
     - uses: actions/checkout@v4       
     - name: Test-combine_unit
       working-directory: ${{github.workspace}}/build/test
@@ -114,6 +129,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: Environment
     steps:
+    - name: Download a single artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: packing-tests
+
     - uses: actions/checkout@v4   
     - name: Test-threadpool
       working-directory: ${{github.workspace}}/build/test
