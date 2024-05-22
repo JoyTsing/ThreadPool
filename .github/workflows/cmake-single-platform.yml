@@ -13,7 +13,7 @@ env:
   BUILD_TYPE: Release
 
 jobs:
-  Environment:
+  Build:
     # The CMake configure and build commands are platform agnostic and should work equally well on Windows or Mac.
     # You can convert this to a matrix build if you need cross-platform coverage.
     # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
@@ -21,12 +21,12 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: Environment
+    - name: Set up the libraries
       working-directory: ${{github.workspace}}
       shell: bash
       run:  |
         sudo apt install binutils-dev libdwarf-dev libdwarf-dev cmake
-    - name: install GCC13
+    - name: Install GCC-13
       shell:  bash
       run:  |
         sudo add-apt-repository ppa:ubuntu-toolchain-r/test
@@ -34,12 +34,12 @@ jobs:
         sudo update-alternatives --install `which gcc` gcc `which gcc-13` 99
         sudo update-alternatives --install `which g++` g++ `which g++-13` 99
         
-    - name: '[Linux] Verifying installed g++ version'
+    - name: 'Verifying installed g++ version'
       shell:  bash
       run: |
           g++ --version
           
-    - name: install boost
+    - name: Install Boost
       shell:  bash
       working-directory: /tmp/
       run: |
@@ -53,19 +53,19 @@ jobs:
     ########################################
     #              Building                #
     ########################################
-    - name: submodule
+    - name: Init submodule
       shell: bash
       working-directory: ${{github.workspace}}
       run:  |
         git submodule init && git submodule update
         
-    - name: Build
+    - name: Build the project
       # Build your program with the given configuration
       working-directory: ${{github.workspace}}
       shell: bash
       run:  |
         ${{github.workspace}}/build.sh
-    - name: Upload Tests
+    - name: Upload test artifacts
       uses: actions/upload-artifact@v4
       with:
         name: packing-tests
@@ -82,7 +82,7 @@ jobs:
     ########################################
   Test-queue:
     runs-on: ubuntu-latest
-    needs: Environment
+    needs: Build
     steps:
     - name: mkdir
       working-directory: ${{github.workspace}}
@@ -110,7 +110,7 @@ jobs:
 
   Test-function:
     runs-on: ubuntu-latest
-    needs: Environment
+    needs: Build
     steps:
     - name: mkdir
       working-directory: ${{github.workspace}}
@@ -133,7 +133,7 @@ jobs:
 
   Test-combine_unit:
     runs-on: ubuntu-latest
-    needs: Environment
+    needs: Build
     steps:
     - name: mkdir
       working-directory: ${{github.workspace}}
@@ -156,7 +156,7 @@ jobs:
 
   Test-threadpool:
     runs-on: ubuntu-latest
-    needs: Environment
+    needs: Build
     steps:
     - name: mkdir
       working-directory: ${{github.workspace}}
