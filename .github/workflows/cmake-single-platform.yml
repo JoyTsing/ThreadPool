@@ -81,47 +81,68 @@ jobs:
     runs-on: ubuntu-latest
     needs: Environment
     steps:
-    - name: Download a single artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: packing-tests
-        
     - uses: actions/checkout@v4
-    - name: Test-queue
+    - name: mkdir
       working-directory: ${{github.workspace}}
       shell: bash
       run:  |
+        mkdir build/test/ -p
+
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: packing-tests
+        path: ${{github.workspace}}/build/test
+        
+    - uses: actions/checkout@v4
+    - name: Test-queue
+      working-directory: ${{github.workspace}}/build/test
+      shell: bash
+      run:  |
+        ls -ls
         ./queue_test
 
   Test-function:
     runs-on: ubuntu-latest
     needs: Environment
     steps:
-    - name: Download a single artifact
+    - uses: actions/checkout@v4
+    - name: mkdir
+      working-directory: ${{github.workspace}}
+      shell: bash
+      run:  |
+        mkdir build/test/ -p
+    - name: Download artifacts
       uses: actions/download-artifact@v4
       with:
         name: packing-tests
 
     - uses: actions/checkout@v4
     - name: Test-function
-      working-directory: ${{github.workspace}}
+      working-directory: ${{github.workspace}}/build/test
       shell: bash
       run:  |
-        ls
         ./function_test
 
   Test-combine_unit:
     runs-on: ubuntu-latest
     needs: Environment
     steps:
-    - name: Download a single artifact
+    - uses: actions/checkout@v4
+    - name: mkdir
+      working-directory: ${{github.workspace}}
+      shell: bash
+      run:  |
+        mkdir build/test/ -p  
+
+    - name: Download artifacts
       uses: actions/download-artifact@v4
       with:
         name: packing-tests
 
     - uses: actions/checkout@v4       
     - name: Test-combine_unit
-      working-directory: ${{github.workspace}}
+      working-directory: ${{github.workspace}}/build/test
       shell: bash
       run:  |
         ./combine_unit_test 
@@ -130,7 +151,14 @@ jobs:
     runs-on: ubuntu-latest
     needs: Environment
     steps:
-    - name: Download a single artifact
+    - uses: actions/checkout@v4
+    - name: mkdir
+      working-directory: ${{github.workspace}}
+      shell: bash
+      run:  |
+        mkdir build/test/ -p
+
+    - name: Download artifacts
       uses: actions/download-artifact@v4
       with:
         name: packing-tests
