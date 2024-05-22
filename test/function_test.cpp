@@ -31,6 +31,18 @@ TEST_CASE("function test") {
 
 // NOLINTNEXTLINE
 TEST_CASE("function test") {
+  auto test = [](std::function<int(int)> func) {
+    for (int i = 0; i < 10000; i++) {
+      int res = func(i);
+      CHECK(res == i + 1);
+    }
+  };
+  ankerl::nanobench::Bench().minEpochIterations(1000).run(
+      "std::function test add", [&]() { test(func_add1); });
+}
+
+// NOLINTNEXTLINE
+TEST_CASE("function test") {
   auto test = [](Function<void(int&, int&)> func) {
     for (int i = 0; i < 10000; i++) {
       int should_a = i + 1, should_b = i;
@@ -42,4 +54,19 @@ TEST_CASE("function test") {
   };
   ankerl::nanobench::Bench().minEpochIterations(1000).run(
       "function test swap", [&]() { test(func_swap); });
+}
+
+// NOLINTNEXTLINE
+TEST_CASE("function test") {
+  auto test = [](std::function<void(int&, int&)> func) {
+    for (int i = 0; i < 10000; i++) {
+      int should_a = i + 1, should_b = i;
+      int a = i, b = i + 1;
+      func(std::ref(a), std::ref(b));
+      CHECK(a == should_a);
+      CHECK(b == should_b);
+    }
+  };
+  ankerl::nanobench::Bench().minEpochIterations(1000).run(
+      "std::function test swap", [&]() { test(func_swap); });
 }
