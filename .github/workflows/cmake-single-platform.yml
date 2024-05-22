@@ -96,25 +96,16 @@ jobs:
         name: packing-tests
         path: build/test/
   
-    - name: ls all
-      shell: bash
-      working-directory: ${{github.workspace}}
-      run: |
-        ls -al
-
     - name: Display structure of downloaded files
+      working-directory: ${{github.workspace}}
       shell: bash
       run: |
-        pwd
         ls -R build/test/
     
-    - uses: actions/checkout@v4
     - name: Test-queue
       working-directory: ${{github.workspace}}/build/test
       shell: bash
       run:  |
-        pwd
-        ls -al
         ./queue_test
 
   Test-function:
@@ -133,7 +124,6 @@ jobs:
         name: packing-tests
         path: build/test/
 
-    - uses: actions/checkout@v4
     - name: Test-function
       working-directory: ${{github.workspace}}/build/test
       shell: bash
@@ -156,7 +146,6 @@ jobs:
         name: packing-tests
         path: build/test/
 
-    - uses: actions/checkout@v4       
     - name: Test-combine_unit
       working-directory: ${{github.workspace}}/build/test
       shell: bash
@@ -178,8 +167,7 @@ jobs:
       with:
         name: packing-tests
         path: build/test/
-
-    - uses: actions/checkout@v4   
+ 
     - name: Test-threadpool
       working-directory: ${{github.workspace}}/build/test
       shell: bash
