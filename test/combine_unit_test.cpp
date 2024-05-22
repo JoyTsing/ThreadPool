@@ -83,15 +83,15 @@ TEST_CASE("combine-test") {
   ThreadPool test_(8);
   ankerl::nanobench::doNotOptimizeAway(test_);
   int iter = 0;
-  ankerl::nanobench::Bench().minEpochIterations(15).run(
+  ankerl::nanobench::Bench().minEpochIterations(20).run(
       "check combine unit", [&]() {
         std::vector<std::future<int>> results;
 
-        for (int i = 0; i < 20000; i++) {
+        for (int i = 0; i < 30000; i++) {
           results.emplace_back(test_.Enqueue([](int i) { return i; }, i));
         }
 
-        for (int i = 0; i < 20000; i++) {
+        for (int i = 0; i < 30000; i++) {
           int res = results[i].get();
           CHECK(res == i);
         }
