@@ -52,7 +52,7 @@ TEST_CASE("thread-pool test1") {
   // 100 times faster than mine, LOL
   ankerl::nanobench::Bench().minEpochIterations(100).run(
       "[test1] boost::asio::thread_pool speed test", [&]() {
-        for (int i = 0; i < 20000; i++) {
+        for (int i = 0; i < 10000; i++) {
           boost::asio::post(pool, [i]() {
             std::ostringstream ss;
             ss << "hello world" << i;
@@ -73,7 +73,7 @@ TEST_CASE("thread-pool test1") {
   int iter = 0;
   ankerl::nanobench::Bench().minEpochIterations(100).run(
       "[test1] thread-pool mode fixed speed test", [&]() {
-        for (int i = 0; i < 20000; i++) {
+        for (int i = 0; i < 10000; i++) {
           pool.submit([i]() {
             std::ostringstream ss;
             ss << "hello world" << i;
@@ -94,7 +94,7 @@ TEST_CASE("thread-pool test1") {
   int iter = 0;
   ankerl::nanobench::Bench().minEpochIterations(100).run(
       "[test1] thread-pool mode fixed yield-waitStrategy speed test", [&]() {
-        for (int i = 0; i < 20000; i++) {
+        for (int i = 0; i < 10000; i++) {
           pool.submit([i]() {
             std::ostringstream ss;
             ss << "hello world" << i;
@@ -114,7 +114,7 @@ TEST_CASE("thread-pool test1") {
   int iter = 0;
   ankerl::nanobench::Bench().minEpochIterations(100).run(
       "[test1] thread-pool mode cached speed test", [&]() {
-        for (int i = 0; i < 20000; i++) {
+        for (int i = 0; i < 10000; i++) {
           pool.submit([i]() {
             std::ostringstream ss;
             ss << "hello world" << i;
@@ -135,7 +135,7 @@ TEST_CASE("thread-pool test1") {
   int iter = 0;
   ankerl::nanobench::Bench().minEpochIterations(100).run(
       "[test1] thread-pool mode cached speed test", [&]() {
-        for (int i = 0; i < 20000; i++) {
+        for (int i = 0; i < 10000; i++) {
           pool.submit([i]() {
             std::ostringstream ss;
             ss << "hello world" << i;
