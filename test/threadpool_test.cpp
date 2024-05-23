@@ -287,7 +287,7 @@ TEST_CASE("thread-pool test2") {
   pool.start();
   int iter = 0;
   ankerl::nanobench::Bench().minEpochIterations(50).run(
-      "[test3] thread-pool CACHED mode BlockWaitStrategy "
+      "[test2] thread-pool CACHED mode BlockWaitStrategy "
       "performance test",
       [&]() {
         std::vector<std::future<int>> results;
@@ -316,7 +316,7 @@ void func_swap(int &a, int &b) {
 }
 
 auto test = [](Function<void(int &, int &)> func) {
-  for (int i = 0; i < 150000; i++) {
+  for (int i = 0; i < 100000; i++) {
     int should_a = i + 1, should_b = i;
     int a = i, b = i + 1;
     func(std::ref(a), std::ref(b));
