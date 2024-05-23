@@ -5,7 +5,6 @@
 #include <nanobench.h>
 
 #include <future>
-#include <iostream>
 #include <thread>
 
 #include "function/function.h"
@@ -14,12 +13,11 @@
 
 // a simple threadpool to test
 class ThreadPool {
- public:
+  public:
   explicit ThreadPool(std::size_t thread_num, std::size_t max_task_num = 1000)
       : stop_(false) {
     // 初始化失败抛出异常
-    if (!task_queue_.Init(max_task_num,
-                          new wait_strategy::TimeoutBlockStrategy(2000))) {
+    if (!task_queue_.Init(max_task_num, new wait_strategy::TimeoutBlockStrategy(2000))) {
       throw std::runtime_error("Task queue init failed");
     }
 
@@ -41,8 +39,7 @@ class ThreadPool {
   }
 
   template <typename F, typename... Args>
-  auto Enqueue(F &&f, Args &&...args)
-      -> std::future<typename std::result_of<F(Args...)>::type> {
+  auto Enqueue(F &&f, Args &&...args) -> std::future<typename std::result_of<F(Args...)>::type> {
     using return_type = typename std::result_of<F(Args...)>::type;
 
     // 函数 f和其参数args， 打包成一个 std::packaged_task对象，放入任务队列
@@ -72,7 +69,7 @@ class ThreadPool {
     }
   }
 
- private:
+  private:
   std::vector<std::thread> workers_;
   BoundedQueue<Function<void()>> task_queue_;
   std::atomic_bool stop_;
@@ -83,17 +80,16 @@ TEST_CASE("combine-test") {
   ThreadPool test_(8);
   ankerl::nanobench::doNotOptimizeAway(test_);
   int iter = 0;
-  ankerl::nanobench::Bench().minEpochIterations(20).run(
-      "check combine unit", [&]() {
-        std::vector<std::future<int>> results;
+  ankerl::nanobench::Bench().minEpochIterations(20).run("check combine unit", [&]() {
+    std::vector<std::future<int>> results;
 
-        for (int i = 0; i < 20000; i++) {
-          results.emplace_back(test_.Enqueue([](int i) { return i; }, i));
-        }
+    for (int i = 0; i < 20000; i++) {
+      results.emplace_back(test_.Enqueue([](int i) { return i; }, i));
+    }
 
-        for (int i = 0; i < 20000; i++) {
-          int res = results[i].get();
-          CHECK(res == i);
-        }
-      });
+    for (int i = 0; i < 20000; i++) {
+      int res = results[i].get();
+      CHECK(res == i);
+    }
+  });
 }

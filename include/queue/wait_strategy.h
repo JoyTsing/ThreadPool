@@ -8,7 +8,7 @@
 
 namespace wait_strategy {
 class WaitStrategy {
- public:
+  public:
   virtual void NotifyOne() {};
   virtual void BreakAllWait() {};
   virtual bool EmptyWait() = 0;
@@ -20,7 +20,7 @@ class WaitStrategy {
  */
 
 class BlockWaitStrategy : public WaitStrategy {
- public:
+  public:
   BlockWaitStrategy() = default;
   void NotifyOne() override { cv_.notify_one(); }
 
@@ -32,7 +32,7 @@ class BlockWaitStrategy : public WaitStrategy {
     return true;
   }
 
- private:
+  private:
   std::mutex mutex_;
   std::condition_variable cv_;
 };
@@ -43,7 +43,7 @@ class BlockWaitStrategy : public WaitStrategy {
  */
 
 class SleepWaitStrategy : public WaitStrategy {
- public:
+  public:
   SleepWaitStrategy() = default;
   explicit SleepWaitStrategy(std::uint64_t sleep_time_ms)
       : sleep_time_ms_(sleep_time_ms) {}
@@ -60,7 +60,7 @@ class SleepWaitStrategy : public WaitStrategy {
     sleep_time_ms_ = sleep_time_ms;
   }
 
- private:
+  private:
   std::uint64_t sleep_time_ms_ = 1000;
 };
 
@@ -70,7 +70,7 @@ class SleepWaitStrategy : public WaitStrategy {
  */
 
 class YieldWaitStrategy : public WaitStrategy {
- public:
+  public:
   YieldWaitStrategy() {}
   bool EmptyWait() override {
     // 让出cpu,节省资源
@@ -85,7 +85,7 @@ class YieldWaitStrategy : public WaitStrategy {
  */
 
 class TimeoutBlockStrategy : public WaitStrategy {
- public:
+  public:
   TimeoutBlockStrategy() = default;
 
   explicit TimeoutBlockStrategy(std::uint64_t timeout_ms)
@@ -107,7 +107,7 @@ class TimeoutBlockStrategy : public WaitStrategy {
     timeout_ms_ = std::chrono::milliseconds(timeout_us);
   }
 
- private:
+  private:
   std::chrono::milliseconds timeout_ms_ = std::chrono::milliseconds(1000);
   std::condition_variable cv_;
   std::mutex mutex_;

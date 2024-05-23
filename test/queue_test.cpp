@@ -16,12 +16,11 @@
 
 // a simple threadpool to test
 class ThreadPool {
- public:
+  public:
   explicit ThreadPool(std::size_t thread_num, std::size_t max_task_num = 1000)
       : stop_(false) {
     // 初始化失败抛出异常
-    if (!task_queue_.Init(max_task_num,
-                          new wait_strategy::YieldWaitStrategy())) {
+    if (!task_queue_.Init(max_task_num, new wait_strategy::YieldWaitStrategy())) {
       throw std::runtime_error("Task queue init failed");
     }
 
@@ -43,8 +42,7 @@ class ThreadPool {
   }
 
   template <typename F, typename... Args>
-  auto Enqueue(F &&f, Args &&...args)
-      -> std::future<typename std::result_of<F(Args...)>::type> {
+  auto Enqueue(F &&f, Args &&...args) -> std::future<typename std::result_of<F(Args...)>::type> {
     using return_type = typename std::result_of<F(Args...)>::type;
 
     // 函数 f和其参数args， 打包成一个 std::packaged_task对象，放入任务队列
@@ -74,14 +72,14 @@ class ThreadPool {
     }
   }
 
- private:
+  private:
   std::vector<std::thread> workers_;
   BoundedQueue<Function<void()>> task_queue_;
   std::atomic_bool stop_;
 };
 
 class Test_ThreadPool {
- public:
+  public:
   void test() {
     ThreadPool thread_pool(4);
     std::vector<std::future<std::string>> results;
@@ -118,12 +116,11 @@ TEST_CASE("lock-free queue test") {
   Test_ThreadPool test_;
   ankerl::nanobench::doNotOptimizeAway(test_);
   int iter = 0;
-  ankerl::nanobench::Bench().minEpochIterations(500).run("lock-free queue test",
-                                                         [&]() {
-                                                           test_.test();
-                                                           // minilog::log_warn("epoch
-                                                           // {}", iter++);
-                                                         });
+  ankerl::nanobench::Bench().minEpochIterations(500).run("lock-free queue test", [&]() {
+    test_.test();
+    // minilog::log_warn("epoch
+    // {}", iter++);
+  });
 }
 
 // NOLINTNEXTLINE
@@ -131,11 +128,10 @@ TEST_CASE("lock-free queue test") {
   Test_ThreadPool test_;
   ankerl::nanobench::doNotOptimizeAway(test_);
   int iter = 0;
-  ankerl::nanobench::Bench().minEpochIterations(500).run(
-      "memory and performance test", [&]() {
-        test_.test2();
-        // minilog::log_warn("epoch {}", iter++);
-      });
+  ankerl::nanobench::Bench().minEpochIterations(500).run("memory and performance test", [&]() {
+    test_.test2();
+    // minilog::log_warn("epoch {}", iter++);
+  });
 }
 
 // NOLINTNEXTLINE
@@ -143,18 +139,17 @@ TEST_CASE("lock-free queue test") {
   ThreadPool test_(8);
   ankerl::nanobench::doNotOptimizeAway(test_);
   int iter = 0;
-  ankerl::nanobench::Bench().minEpochIterations(100).run(
-      "check queue correct", [&]() {
-        std::vector<std::future<int>> results;
+  ankerl::nanobench::Bench().minEpochIterations(100).run("check queue correct", [&]() {
+    std::vector<std::future<int>> results;
 
-        for (int i = 0; i < 10000; i++) {
-          results.emplace_back(test_.Enqueue([i]() { return i; }));
-        }
+    for (int i = 0; i < 10000; i++) {
+      results.emplace_back(test_.Enqueue([i]() { return i; }));
+    }
 
-        for (int i = 0; i < 10000; i++) {
-          int res = results[i].get();
-          CHECK(res == i);
-        }
-        // minilog::log_warn("epoch {}", iter++);
-      });
+    for (int i = 0; i < 10000; i++) {
+      int res = results[i].get();
+      CHECK(res == i);
+    }
+    // minilog::log_warn("epoch {}", iter++);
+  });
 }

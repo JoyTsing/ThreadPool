@@ -13,17 +13,6 @@
 
 namespace threadpool {
 
-int Thread::generatedId_ = 0;
-
-Thread::Thread(Task func) : func_(std::move(func)), threadID_(generatedId_++) {}
-
-void Thread::start() {
-  std::thread t(func_, threadID_);
-  t.detach();
-}
-
-int Thread::getID() const { return threadID_; }
-
 ThreadPool::ThreadPool()
     : initThreadSize_(0),
       taskSize_(0),
@@ -84,8 +73,8 @@ void ThreadPool::start(int initThreadSize) {
   initThreadSize_ = initThreadSize;
   curTheadSize_ = initThreadSize;
   for (int i = 0; i < initThreadSize_; i++) {
-    auto thread_ptr = std::make_unique<Thread>(
-        std::bind(&ThreadPool::newThread, this, std::placeholders::_1));
+    auto thread_ptr =
+        std::make_unique<Thread>(std::bind(&ThreadPool::newThread, this, std::placeholders::_1));
     int threadID = thread_ptr->getID();
     pool_.emplace(threadID, std::move(thread_ptr));
     // minilog::log_info("create new thread, id {}.", threadID);
@@ -119,12 +108,10 @@ void ThreadPool::newThread(int threadid) {
 
         if (mod_ == PoolMode::MODE_CACHED) {
           // timeout
-          if (std::cv_status::timeout ==
-              notEmpty_.wait_for(lock, std::chrono::seconds(1))) {
+          if (std::cv_status::timeout == notEmpty_.wait_for(lock, std::chrono::seconds(1))) {
             // heart-beat check
             auto now = std::chrono::high_resolution_clock::now();
-            auto duration = std::chrono::duration_cast<std::chrono::seconds>(
-                now - baseline);
+            auto duration = std::chrono::duration_cast<std::chrono::seconds>(now - baseline);
             if (duration.count() >= config::THREAD_MAX_IDLE_SECOND &&
                 curTheadSize_ > initThreadSize_) {
               // recycle

@@ -8,7 +8,7 @@
 
 template <typename T>
 class BoundedQueue {
- public:
+  public:
   BoundedQueue() = default;
   ~BoundedQueue();
   BoundedQueue(const BoundedQueue&) = delete;
@@ -41,7 +41,7 @@ class BoundedQueue {
   // notify all thread to break wait
   void BreakAllWait();
 
- public:
+  public:
   std::uint64_t get_head() { return head_.load(); }
 
   std::uint64_t get_tail() { return tail_.load(); }
@@ -56,17 +56,16 @@ class BoundedQueue {
     wait_strategy_.reset(wait_strategy);
   }
 
- private:
+  private:
   // 获取下标
   std::uint64_t get_index(std::uint64_t);
 
- private:
+  private:
 // 指定内存对齐方式, 可提高代码性能和效率
 #define CACHELINE_SIZE 64
   alignas(CACHELINE_SIZE) std::atomic<std::uint64_t> head_ = {0};
   alignas(CACHELINE_SIZE) std::atomic<std::uint64_t> tail_ = {1};
-  alignas(CACHELINE_SIZE) std::atomic<std::uint64_t> max_head_ = {
-      1};  // 最大的head, tail的备份
+  alignas(CACHELINE_SIZE) std::atomic<std::uint64_t> max_head_ = {1};  // 最大的head, tail的备份
 #undef CACHELINE_SIZE
 
   std::uint64_t size_ = 0;
@@ -102,8 +101,7 @@ bool BoundedQueue<T>::Init(std::uint64_t cap) {
 }
 
 template <typename T>
-bool BoundedQueue<T>::Init(std::uint64_t cap,
-                           wait_strategy::WaitStrategy* wait_strategy) {
+bool BoundedQueue<T>::Init(std::uint64_t cap, wait_strategy::WaitStrategy* wait_strategy) {
   size_ = cap + 2;
   pool_ = reinterpret_cast<T*>(std::calloc(size_, sizeof(T)));
   if (pool_ == nullptr) {
@@ -152,20 +150,17 @@ bool BoundedQueue<T>::enqueue(const T& item) {
   std::uint64_t old_max_head = 0;
   do {
     new_tail = old_tail + 1;
-    if (get_index(new_tail) ==
-        get_index(head_.load(std::memory_order_acquire))) {
+    if (get_index(new_tail) == get_index(head_.load(std::memory_order_acquire))) {
       return false;  // 队列满
     }
-  } while (!tail_.compare_exchange_weak(old_tail, new_tail,
-                                        std::memory_order_acq_rel,
+  } while (!tail_.compare_exchange_weak(old_tail, new_tail, std::memory_order_acq_rel,
                                         std::memory_order_relaxed));
 
   pool_[get_index(old_tail)] = item;
 
   do {
     old_max_head = old_tail;
-  } while (!max_head_.compare_exchange_weak(old_tail, new_tail,
-                                            std::memory_order_acq_rel,
+  } while (!max_head_.compare_exchange_weak(old_tail, new_tail, std::memory_order_acq_rel,
                                             std::memory_order_relaxed));
   wait_strategy_->NotifyOne();
   return true;
@@ -183,8 +178,7 @@ bool BoundedQueue<T>::dequeue(T* item) {
       return false;
     }
     *item = pool_[get_index(new_head)];
-  } while (!head_.compare_exchange_weak(old_head, new_head,
-                                        std::memory_order_acq_rel,
+  } while (!head_.compare_exchange_weak(old_head, new_head, std::memory_order_acq_rel,
                                         std::memory_order_relaxed));
   wait_strategy_->NotifyOne();
   return true;

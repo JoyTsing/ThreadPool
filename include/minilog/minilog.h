@@ -12,8 +12,7 @@
 
 namespace minilog {
 
-#define MINILOG_FOREACH_LOG_LEVEL(f) \
-  f(trace) f(debug) f(info) f(critical) f(warn) f(error) f(fatal)
+#define MINILOG_FOREACH_LOG_LEVEL(f) f(trace) f(debug) f(info) f(critical) f(warn) f(error) f(fatal)
 
 enum class log_level : std::uint8_t {
 #define _FUNCTION(name) name,
@@ -24,17 +23,15 @@ enum class log_level : std::uint8_t {
 namespace details {
 // 上色
 #if defined(__linux__) || defined(__APPLE__)
-inline constexpr char
-    k_level_ansi_colors[(std::uint8_t)log_level::fatal + 1][8] = {
-        "\E[37m", "\E[35m", "\E[32m", "\E[34m", "\E[33m", "\E[31m", "\E[31;1m",
+inline constexpr char k_level_ansi_colors[(std::uint8_t)log_level::fatal + 1][8] = {
+    "\E[37m", "\E[35m", "\E[32m", "\E[34m", "\E[33m", "\E[31m", "\E[31;1m",
 };
 inline constexpr char k_reset_ansi_color[4] = "\E[m";
-#define _MINILOG_IF_HAS_ANSI_COLORS(x) x
+  #define _MINILOG_IF_HAS_ANSI_COLORS(x) x
 #else
-#define _MINILOG_IF_HAS_ANSI_COLORS(x)
-inline constexpr char k_level_ansi_colors[(std::uint8_t)log_level::fatal + 1]
-                                         [1] = {
-                                             "", "", "", "", "", "", "",
+  #define _MINILOG_IF_HAS_ANSI_COLORS(x)
+inline constexpr char k_level_ansi_colors[(std::uint8_t)log_level::fatal + 1][1] = {
+    "", "", "", "", "", "", "",
 };
 inline constexpr char k_reset_ansi_color[1] = "";
 #endif
@@ -74,8 +71,7 @@ inline std::ofstream g_log_file = []() -> std::ofstream {
   return std::ofstream();
 }();
 
-inline void output_log(log_level level, std::string msg,
-                       std::source_location const &loc) {
+inline void output_log(log_level level, std::string msg, std::source_location const &loc) {
   std::chrono::zoned_time now{std::chrono::current_zone(),
                               std::chrono::high_resolution_clock::now()};
   msg = std::format("{} {}:{} [{}] {}", now, loc.file_name(), loc.line(),
@@ -84,8 +80,7 @@ inline void output_log(log_level level, std::string msg,
     g_log_file << msg << std::endl;
   }
   if (level >= g_max_level) {
-    std::cout << _MINILOG_IF_HAS_ANSI_COLORS(
-                     k_level_ansi_colors[(std::uint8_t)level] +)
+    std::cout << _MINILOG_IF_HAS_ANSI_COLORS(k_level_ansi_colors[(std::uint8_t)level] +)
                          msg _MINILOG_IF_HAS_ANSI_COLORS(+k_reset_ansi_color) +
                      '\n';
   }
@@ -93,11 +88,11 @@ inline void output_log(log_level level, std::string msg,
 
 template <class T>
 struct with_source_location {
- private:
+  private:
   T inner_;
   std::source_location loc_;
 
- public:
+  public:
   template <class U>
     requires std::constructible_from<T, U>
   // 首先，这是一个模板函数，它接受一个类型为 U 的参数。这个
@@ -105,8 +100,10 @@ struct with_source_location {
   // 的要求，也就是说，类型 T 必须能够从类型 U 构造。
   consteval with_source_location(  // 构造一个带有源代码位置信息的对象，consteval
                                    // 环境中定义的，这意味着它在编译时就会被执行。
-      U &&inner, std::source_location loc = std::source_location::current())
-      : inner_(std::forward<U>(inner)), loc_(loc) {}
+      U &&inner,
+      std::source_location loc = std::source_location::current())
+      : inner_(std::forward<U>(inner)),
+        loc_(loc) {}
   constexpr T const &format() const { return inner_; }
   constexpr const std::source_location &location() const { return loc_; }
 };
@@ -127,12 +124,11 @@ void generic_log(log_level level,
   details::output_log(level, std::move(msg), loc);
 }
 
-#define _FUNCTION(name)                                                        \
-  template <typename... Args>                                                  \
-  void log_##name(                                                             \
-      details::with_source_location<std::format_string<Args...>> fmt,          \
-      Args &&...args) {                                                        \
-    generic_log(log_level::name, std::move(fmt), std::forward<Args>(args)...); \
+#define _FUNCTION(name)                                                           \
+  template <typename... Args>                                                     \
+  void log_##name(details::with_source_location<std::format_string<Args...>> fmt, \
+                  Args &&...args) {                                               \
+    generic_log(log_level::name, std::move(fmt), std::forward<Args>(args)...);    \
   }
 MINILOG_FOREACH_LOG_LEVEL(_FUNCTION)
 #undef _FUNCTION

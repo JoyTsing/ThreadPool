@@ -7,7 +7,7 @@
 #include <memory>
 #include <mutex>
 #include <thread>
-#include <unordered_map>
+#include "thread/thread.h"
 
 #include "function/function.h"
 #include "minilog/minilog.h"
@@ -25,24 +25,8 @@ enum class PoolMode : uint8_t {
   MODE_CACHED,  // 动态增长
 };
 
-class Thread {
- public:
-  using Task = Function<void(int)>;  // 任务类型
-  Thread(Task func);
-  ~Thread() = default;
-  void start();
-  int getID() const;
-
- private:
-  static int generatedId_;
-
- private:
-  Task func_;
-  int threadID_;
-};
-
 class ThreadPool {
- public:
+  public:
   using Task = Function<void()>;
   ThreadPool();
   ~ThreadPool();
@@ -57,8 +41,7 @@ class ThreadPool {
 
   // 提交task
   template <class F, class... Args>
-  auto submit(F&& f, Args&&... args)
-      -> std::future<typename std::invoke_result_t<F, Args...>> {
+  auto submit(F&& f, Args&&... args) -> std::future<typename std::invoke_result_t<F, Args...>> {
     using RetType = typename std::invoke_result_t<F, Args...>;
     auto task = std::make_shared<std::packaged_task<RetType()>>(
         std::bind(std::forward<F>(f), std::forward<Args>(args)...));
@@ -67,12 +50,10 @@ class ThreadPool {
     // lock
     std::unique_lock<std::mutex> lock(mtx_);
     // submit
-    while (!notFull_.wait_for(lock, std::chrono::seconds(1), [&]() -> bool {
-      return TaskQueue_.size() < taskThreshold_;
-    })) {
-      minilog::log_warn(
-          "task queue is full,thread id {} submit task fail, try again",
-          convertThreadId(std::this_thread::get_id()));
+    while (!notFull_.wait_for(lock, std::chrono::seconds(1),
+                              [&]() -> bool { return TaskQueue_.size() < taskThreshold_; })) {
+      minilog::log_warn("task queue is full,thread id {} submit task fail, try again",
+                        convertThreadId(std::this_thread::get_id()));
     }
 
     // push task
@@ -86,8 +67,8 @@ class ThreadPool {
     if (mod_ == PoolMode::MODE_CACHED && taskSize_ > idleThreadSize_ &&
         curTheadSize_ < threadSizeThreshHold_) {
       // 创建新的线程
-      auto thread_ptr = std::make_unique<Thread>(
-          std::bind(&ThreadPool::newThread, this, std::placeholders::_1));
+      auto thread_ptr =
+          std::make_unique<Thread>(std::bind(&ThreadPool::newThread, this, std::placeholders::_1));
       int threadID = thread_ptr->getID();
       // push to pool
       pool_.emplace(threadID, std::move(thread_ptr));
@@ -101,12 +82,12 @@ class ThreadPool {
 
   void start(int initThreadSize = std::thread::hardware_concurrency() / 4);
 
- private:
+  private:
   void newThread(int threadid);
   bool isRunning() const;
   uint32_t convertThreadId(std::thread::id id);
 
- private:
+  private:
   // init
   int initThreadSize_;
   int threadSizeThreshHold_;

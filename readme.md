@@ -26,7 +26,7 @@ Quick start:
 
 ## Bench
 
-本地的一个简单的 bench:
+本地wsl2上的bench:
 
 ![local-bench](img/bench.png)
 

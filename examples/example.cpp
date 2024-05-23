@@ -13,7 +13,7 @@ int main() {
   for (int i = 0; i < 50; i++) {
     pool.submit(fun1, i * 100);
   }
-  std::vector<std::future<int> > results;
+  std::vector<std::future<int>> results;
   for (int i = 0; i < 50; i++) {
     results.emplace_back(pool.submit(expensive_task, i, i + 1));
   }
@@ -33,8 +33,9 @@ int main() {
     }));
   }
   minilog::log_warn(" =======  commit all 2 ========= ");
-  for (auto&& result : results)
+  for (auto&& result : results) {
     std::cout << " future get:" << result.get() << ' ' << std::endl;
+  }
   pool.submit(timeout_task);
   minilog::log_warn("======= commit all 3");
   for (int i = 0; i < 100; i++) {

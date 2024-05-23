@@ -25,8 +25,8 @@ TEST_CASE("function test") {
       CHECK(res == i + 1);
     }
   };
-  ankerl::nanobench::Bench().minEpochIterations(1000).run(
-      "function test add", [&]() { test(func_add1); });
+  ankerl::nanobench::Bench().minEpochIterations(1000).run("function test add",
+                                                          [&]() { test(func_add1); });
 }
 
 // NOLINTNEXTLINE
@@ -37,8 +37,8 @@ TEST_CASE("function test") {
       CHECK(res == i + 1);
     }
   };
-  ankerl::nanobench::Bench().minEpochIterations(1000).run(
-      "std::function test add", [&]() { test(func_add1); });
+  ankerl::nanobench::Bench().minEpochIterations(1000).run("std::function test add",
+                                                          [&]() { test(func_add1); });
 }
 
 // NOLINTNEXTLINE
@@ -52,8 +52,8 @@ TEST_CASE("function test") {
       CHECK(b == should_b);
     }
   };
-  ankerl::nanobench::Bench().minEpochIterations(1000).run(
-      "function test swap", [&]() { test(func_swap); });
+  ankerl::nanobench::Bench().minEpochIterations(1000).run("function test swap",
+                                                          [&]() { test(func_swap); });
 }
 
 // NOLINTNEXTLINE
@@ -67,6 +67,6 @@ TEST_CASE("function test") {
       CHECK(b == should_b);
     }
   };
-  ankerl::nanobench::Bench().minEpochIterations(1000).run(
-      "std::function test swap", [&]() { test(func_swap); });
+  ankerl::nanobench::Bench().minEpochIterations(1000).run("std::function test swap",
+                                                          [&]() { test(func_swap); });
 }
