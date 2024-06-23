@@ -42,7 +42,7 @@ TEST_CASE("Optional Function Test") {
   // check constructor with std::nullopt
   Optional<TestClass_1> opt_class_std_nullopt(std::nullopt);
   CHECK(opt_class_std_nullopt.has_value() == false);
-  CHECK_THROWS_AS(opt_class_std_nullopt.value(), BadOptionalAccess);
+  CHECK_THROWS_AS(opt_class_std_nullopt.value(), std::bad_optional_access);
   // check move
   Optional<TestClass_1> opt_class_move(TestClass_1(1, 2));
   auto moved = std::move(opt_class_move).value();
@@ -59,6 +59,25 @@ TEST_CASE("Optional Function Test") {
   CHECK(opt_value_or_nullopt.value_or(2) == 2);
   Optional<int> opt_value_or_std_nullopt(std::nullopt);
   CHECK(opt_value_or_std_nullopt.value_or(2) == 2);
+  // check assign nullopt and recover
+  Optional<int> opt_assign(1);
+  opt_assign = nullopt;
+  CHECK(opt_assign.has_value() == false);
+  CHECK_THROWS_AS(opt_assign.value(), BadOptionalAccess);
+  opt_assign = std::nullopt;
+  CHECK(opt_assign.has_value() == false);
+  CHECK_THROWS_AS(opt_assign.value(), std::bad_optional_access);
+  CHECK(opt_assign.value_or(2) == 2);
+  opt_assign = 42;
+  CHECK(opt_assign.has_value() == true);
+  CHECK(opt_assign.value() == 42);
+  // check copy
+  opt_assign = Optional<int>(-42);
+  CHECK(opt_assign.has_value() == true);
+  CHECK(opt_assign.value() == -42);
+  // check copy constructor
+  opt_assign = Optional<int>(std::nullopt);
+  CHECK(opt_assign.has_value() == false);
 }
 // bench
 // ankerl::nanobench::Bench().minEpochIterations(1000).run("optional test", [&]() {});
