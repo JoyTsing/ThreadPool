@@ -28,6 +28,7 @@ Quick start:
 
 * 实现基于 C++20 `std::source_location`和`std::fmt`的head-only日志库
 * 实现 `std::function`
+* 实现 `std::optional`
 * 实现可更换等待策略的无锁队列
 * 可拓展的线程池本体
 * perf分析性能

@@ -1,3 +1,5 @@
+#include <utility>
+#include <vector>
 #define ANKERL_NANOBENCH_IMPLEMENT
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
@@ -13,6 +15,7 @@ class TestClass_1 {
       : m_x(x),
         m_y(y) {}
   int m_x, m_y;
+  int value_x() const { return m_x; }
 };
 
 class TestClass_info {
@@ -106,15 +109,68 @@ TEST_CASE("Optional Base Test") {
   opt_assign = Optional<int>(std::nullopt);
   CHECK(opt_assign.has_value() == false);
   // check operator
+  Optional<TestClass_1> opt_operator({1, 2});
+  CHECK(opt_operator->value_x() == 1);
+  // check in place
+  Optional<TestClass_1> opt_in_place(std::in_place, 1, 2);
+  CHECK(opt_in_place.has_value() == true);
+  CHECK(opt_in_place.value().m_x == 1);
+  CHECK(opt_in_place.value().m_y == 2);
+  // check in place with initializer list
+  Optional<std::vector<int>> opt_in_place_list(std::in_place, {1, 2});
+  CHECK(opt_in_place_list.has_value() == true);
+  CHECK(opt_in_place_list.value()[0] == 1);
+  CHECK(opt_in_place_list.value()[1] == 2);
+  // check in place with our in_place
+  Optional<TestClass_1> opt_in_place_our(in_place, 1, 2);
+  CHECK(opt_in_place_our.has_value() == true);
+  CHECK(opt_in_place_our.value().m_x == 1);
+  CHECK(opt_in_place_our.value().m_y == 2);
+  // check in place with initializer list
+  Optional<std::vector<int>> opt_in_place_list_our(in_place, {1, 2});
+  CHECK(opt_in_place_list_our.has_value() == true);
+  CHECK(opt_in_place_list_our.value()[0] == 1);
+  CHECK(opt_in_place_list_our.value()[1] == 2);
+}
+
+Optional<int> parserInt(std::string const &str) {
+  try {
+    return std::stoi(str);
+  } catch (...) {
+    return nullopt;
+  }
 }
 
 // NOLINTNEXTLINE
-TEST_CASE("Optional Emplace Function Test") {
+TEST_CASE("Optional Function Test") {
   // cost move assignment
   // Optional<TestClass_info> opt_cost({1, 2});
-  // check emplace
+  // check emplace, should just print destructor
   Optional<TestClass_info> opt_emplace = std::nullopt;
   opt_emplace.emplace(1, 2);
   std::optional<TestClass_info> std_opt_emplace = std::nullopt;
   std_opt_emplace.emplace(1, 2);
+  auto opt_parser = parserInt("123");
+  CHECK(opt_parser.has_value() == true);
+  CHECK(opt_parser.value() == 123);
+  CHECK(*opt_parser == 123);
+  // check cmp
+  Optional<int> opt_cmp = std::nullopt;
+  CHECK((opt_cmp != Optional(100)) == true);
+  // check and_then
+  Optional<int> opt = std::nullopt;
+  auto opt_and_then = opt.and_then([&](int i) { return i + 1; });
+  opt = 42;
+  CHECK(opt_and_then == 0);
+  auto opt_and_then_2 = opt.and_then([&](int i) -> Optional<int> { return i + 1; });
+  CHECK(opt_and_then_2 == 43);
+  // check transform
+  opt = -42;
+  std::unique_ptr<int> up = std::make_unique<int>();
+  auto opt_transform = opt.transform([up = std::move(up)](int i) -> int { return i + 1; });
+  CHECK(opt_transform == -41);
+  // check or_else
+  opt = std::nullopt;
+  auto opt_or_else = opt.or_else([]() { return 42; });
+  CHECK(opt_or_else == 42);
 }
