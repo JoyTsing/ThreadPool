@@ -1,6 +1,7 @@
 #pragma once
 
 #include <optional>
+#include <type_traits>
 
 class BadOptionalAccess : public std::bad_optional_access {
   public:
@@ -126,6 +127,25 @@ class Optional {
     return *this;
   }
 
+  const T& operator*() const& noexcept { return m_value; }
+
+  T& operator*() & noexcept { return m_value; }
+
+  const T&& operator*() const&& noexcept { return std::move(m_value); }
+
+  T&& operator*() && noexcept { return std::move(m_value); }
+
+  const T* operator->() const noexcept { return &m_value; }
+
+  T* operator->() noexcept { return &m_value; }
+
+  void reset() noexcept {
+    if (m_has_value) {
+      m_value.~T();
+      m_has_value = false;
+    }
+  }
+
   bool has_value() const { return m_has_value; }
 
   // distinguish lvalue and rvalue
@@ -155,9 +175,30 @@ class Optional {
     return default_value;
   }
 
-  T value_or(T default_value) && {
+  T value_or(T default_value) && noexcept(std::is_nothrow_move_assignable_v<T>) {
     if (m_has_value) return std::move(m_value);
     return default_value;
+  }
+
+  template <class... TArgs>
+  void emplace(TArgs&&... args) {
+    if (m_has_value) {
+      m_value.~T();
+      m_has_value = false;
+    }
+    // 保证即使构造失败，m_has_value也为false
+    new (&m_value) T(std::forward<TArgs>(args)...);
+    m_has_value = true;
+  }
+
+  template <class U, class... Ts>
+  void emplace(std::initializer_list<U> ilist, Ts&&... value_args) {
+    if (m_has_value) {
+      m_value.~T();
+      m_has_value = false;
+    }
+    new (&m_value) T(ilist, std::forward<Ts>(value_args)...);
+    m_has_value = true;
   }
 
   private:

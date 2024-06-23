@@ -6,7 +6,6 @@
 #include <nanobench.h>
 
 #include "optional/optional.h"
-#include "minilog/minilog.h"
 
 class TestClass_1 {
   public:
@@ -16,8 +15,31 @@ class TestClass_1 {
   int m_x, m_y;
 };
 
+class TestClass_info {
+  public:
+  TestClass_info(int x, int y)
+      : m_x(x),
+        m_y(y) {}
+  int m_x, m_y;
+  TestClass_info(TestClass_info const &) { printf("TestClass_info(TestClass_info const &)\n"); }
+
+  TestClass_info(TestClass_info &&) { printf("TestClass_info(TestClass_info &&)\n"); }
+
+  TestClass_info &operator=(TestClass_info const &) {
+    printf("TestClass_info &operator=(TestClass_info const &)\n");
+    return *this;
+  }
+
+  TestClass_info &operator=(TestClass_info &&) {
+    printf("TestClass_info &operator=(TestClass_info &&)\n");
+    return *this;
+  }
+
+  ~TestClass_info() { printf("~TestClass_info()\n"); }
+};
+
 // NOLINTNEXTLINE
-TEST_CASE("Optional Function Test") {
+TEST_CASE("Optional Base Test") {
   // check normal value
   Optional<int> opt_normal(1);
   CHECK(opt_normal.has_value() == true);
@@ -52,6 +74,11 @@ TEST_CASE("Optional Function Test") {
   auto moved_2 = std::move(opt_class_move_2.value());
   CHECK(moved_2.m_x == 1);
   CHECK(moved_2.m_y == 2);
+  // check reset
+  Optional<int> opt_reset(1);
+  opt_reset.reset();
+  CHECK(opt_reset.has_value() == false);
+  CHECK_THROWS_AS(opt_reset.value(), std::bad_optional_access);
   // check value_or
   Optional<int> opt_value_or(1);
   CHECK(opt_value_or.value_or(2) == 1);
@@ -78,6 +105,16 @@ TEST_CASE("Optional Function Test") {
   // check copy constructor
   opt_assign = Optional<int>(std::nullopt);
   CHECK(opt_assign.has_value() == false);
+  // check operator
 }
-// bench
-// ankerl::nanobench::Bench().minEpochIterations(1000).run("optional test", [&]() {});
+
+// NOLINTNEXTLINE
+TEST_CASE("Optional Emplace Function Test") {
+  // cost move assignment
+  // Optional<TestClass_info> opt_cost({1, 2});
+  // check emplace
+  Optional<TestClass_info> opt_emplace = std::nullopt;
+  opt_emplace.emplace(1, 2);
+  std::optional<TestClass_info> std_opt_emplace = std::nullopt;
+  std_opt_emplace.emplace(1, 2);
+}
