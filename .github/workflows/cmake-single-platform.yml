@@ -131,6 +131,63 @@ jobs:
         ./function_test
         
   ########################################
+  #           optional_test              #
+  ########################################
+  Test-Optional:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Submodule init
+      working-directory: ${{github.workspace}}
+      shell: bash
+      run:  |
+        git submodule init && git submodule update
+
+    - name: Environment
+      working-directory: ${{github.workspace}}
+      shell: bash
+      run:  |
+        sudo apt install binutils-dev libdwarf-dev libdwarf-dev cmake
+
+    - name: Install GCC13
+      shell:  bash
+      run:  |
+        sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+        sudo apt update && sudo apt-get install gcc-13 g++-13
+        sudo update-alternatives --install `which gcc` gcc `which gcc-13` 99
+        sudo update-alternatives --install `which g++` g++ `which g++-13` 99
+        
+    - name: Verifying installed g++ version
+      shell:  bash
+      run: |
+          g++ --version
+          
+    - name: Install Boost from source
+      shell:  bash
+      working-directory: /tmp/
+      run: |
+        wget  https://boostorg.jfrog.io/artifactory/main/release/1.85.0/source/boost_1_85_0.tar.gz
+        tar -zxvf boost_1_85_0.tar.gz && cd boost_1_85_0
+        ./bootstrap.sh
+        ./b2
+        sudo ./b2 install
+        sudo ldconfig -v | grep boost
+    
+    - name: Build
+      # Build program with the given configuration
+      working-directory: ${{github.workspace}}
+      shell: bash
+      run:  |
+        ${{github.workspace}}/build.sh
+
+    - name: Test-Optional
+      working-directory: ${{github.workspace}}/build/test
+      shell: bash
+      run:  |
+        ./optional_test
+    
+  ########################################
   #           combineunit_test           #
   ########################################
   Test-CombineUnit:
