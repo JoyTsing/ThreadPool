@@ -17,7 +17,7 @@
 
 ## Building
 
-本项目基于CMake，在Ubuntu 22.04 LTS 环境下开发，gcc版本最好使用13及以上。
+本项目基于CMake，在Ubuntu 22.04 LTS 环境下开发，gcc版本最好使用13及以上，如果不需要Boost的性能比较可以自行删除test中的相关代码。
 
 ## Build for POSIX
 Quick start:
@@ -29,6 +29,7 @@ Quick start:
 * 实现基于 C++20 `std::source_location`和`std::fmt`的head-only日志库
 * 实现 `std::function`
 * 实现 `std::optional`
+* 实现 `内存泄漏检测` (utils文件夹下)
 * 实现可更换等待策略的无锁队列
 * 可拓展的线程池本体
 * perf分析性能
