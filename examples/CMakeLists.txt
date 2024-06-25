@@ -10,5 +10,5 @@ foreach(v ${all_examples})
   string(REGEX REPLACE ".cpp" "" target_name ${target_name})
 
   add_executable(${target_name} ${v} ${all_srcs} ${example_srcs})
-  target_link_libraries(${target_name} PUBLIC Backward::Backward Backward::Interface Backward::Object)
+  target_link_libraries(${target_name} PUBLIC Backward::Backward Backward::Interface Backward::Object PRIVATE memoryhook)
 endforeach()

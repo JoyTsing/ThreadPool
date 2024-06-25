@@ -14,4 +14,5 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 
 add_subdirectory(third-party/)
 add_subdirectory(examples/)
+add_subdirectory(utils/)
 add_subdirectory(test/)

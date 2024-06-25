@@ -10,5 +10,13 @@ foreach(v ${all_tests})
 
   add_executable(${target_name} ${v} ${all_src})
   target_link_libraries(${target_name} PUBLIC doctest nanobench
-    Backward::Backward Backward::Object ${Boost_LIBRARY_DIRS})
+    Backward::Backward Backward::Object)
+
+  if(${target_name} STREQUAL "threadpool_test")
+    target_link_libraries(${target_name} PUBLIC ${Boost_LIBRARY_DIRS})
+  endif()
+
+  if(${target_name} STREQUAL "memoryhook_test")
+    target_link_libraries(${target_name} PRIVATE memoryhook)
+  endif()
 endforeach()
