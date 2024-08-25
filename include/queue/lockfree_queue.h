@@ -14,8 +14,8 @@ class BoundedQueue {
   BoundedQueue(const BoundedQueue&) = delete;
   BoundedQueue& operator=(const BoundedQueue&) = delete;
 
-  bool Init(std::uint64_t cap);
-  bool Init(std::uint64_t cap, wait_strategy::WaitStrategy*);
+  bool Init(std::uint64_t cap,
+            wait_strategy::WaitStrategy* wait_strategy = new wait_strategy::TimeoutBlockStrategy());
 
   bool enqueue(const T& item);
   bool dequeue(T* item);
@@ -94,10 +94,6 @@ BoundedQueue<T>::~BoundedQueue() {
     }
     std::free(pool_);
   }
-}
-template <typename T>
-bool BoundedQueue<T>::Init(std::uint64_t cap) {
-  return Init(cap, new wait_strategy::TimeoutBlockStrategy());
 }
 
 template <typename T>

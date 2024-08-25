@@ -45,4 +45,8 @@ struct Function<Ret(Args...)> {
       throw std::runtime_error("function pointer not initialized");
     return m_base->call(std::forward<Args>(args)...);
   }
+
+  bool operator==(std::nullptr_t) const noexcept { return m_base == nullptr; }
+
+  bool operator!=(std::nullptr_t) const noexcept { return m_base != nullptr; }
 };

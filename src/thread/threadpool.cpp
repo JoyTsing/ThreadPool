@@ -127,20 +127,21 @@ void ThreadPool::newThread(int threadid) {
           notEmpty_.wait(lock);
         }
       }
+      // minilog::log_info("tid: {} get Task", tid);
+      // get task
+      TaskQueue_.dequeue(&task);
+      taskSize_--;
+      if (!TaskQueue_.empty()) {
+        notEmpty_.notify_all();
+      }
+      // 取出一个任务，进行通知，通知可以继续提交生产任务
+      notFull_.notify_all();
     }
-
-    // minilog::log_info("tid: {} get Task", tid);
-    //  get task
-    TaskQueue_.dequeue(&task);
-    taskSize_--;
-    if (!TaskQueue_.empty()) {
-      notEmpty_.notify_all();
-    }
-    // 取出一个任务，进行通知，通知可以继续提交生产任务
-    notFull_.notify_all();
     // 执行任务 minilog::log_info("tid: {} do task", tid);
     idleThreadSize_--;
-    task();
+    if (task != nullptr) {
+      task();
+    }
     idleThreadSize_++;
     baseline = std::chrono::high_resolution_clock::now();  // 更新时间
   }
