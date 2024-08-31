@@ -71,7 +71,7 @@ class BoundedQueue {
   std::uint64_t size_ = 0;
   T* pool_ = nullptr;
   std::unique_ptr<wait_strategy::WaitStrategy> wait_strategy_ = nullptr;
-  volatile bool break_all_wait_ = false;
+  std::atomic<bool> break_all_wait_ = false;
 };
 
 template <typename T>
