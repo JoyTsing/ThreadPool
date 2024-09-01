@@ -42,12 +42,6 @@ class BoundedQueue {
   void BreakAllWait();
 
   public:
-  std::uint64_t get_head() { return head_.load(); }
-
-  std::uint64_t get_tail() { return tail_.load(); }
-
-  std::uint64_t get_max_head() { return max_head_.load(); }
-
   std::uint64_t size() { return tail_ - head_ - 1; }
 
   bool empty() { return size() == 0; }
@@ -60,6 +54,12 @@ class BoundedQueue {
   // 获取下标
   std::uint64_t get_index(std::uint64_t);
 
+  std::uint64_t get_head() { return head_.load(); }
+
+  std::uint64_t get_tail() { return tail_.load(); }
+
+  std::uint64_t get_max_head() { return max_head_.load(); }
+
   private:
 // 指定内存对齐方式, 可提高代码性能和效率
 #define CACHELINE_SIZE 64
@@ -68,8 +68,9 @@ class BoundedQueue {
   alignas(CACHELINE_SIZE) std::atomic<std::uint64_t> max_head_ = {1};  // 最大的head, tail的备份
 #undef CACHELINE_SIZE
 
-  std::uint64_t size_ = 0;
   T* pool_ = nullptr;
+
+  std::atomic<std::uint64_t> size_ = 0;
   std::unique_ptr<wait_strategy::WaitStrategy> wait_strategy_ = nullptr;
   std::atomic<bool> break_all_wait_ = false;
 };
@@ -143,7 +144,6 @@ template <typename T>
 bool BoundedQueue<T>::enqueue(const T& item) {
   std::uint64_t new_tail = 0;
   std::uint64_t old_tail = tail_.load(std::memory_order_acquire);  // 获取旧值
-  std::uint64_t old_max_head = 0;
   do {
     new_tail = old_tail + 1;
     if (get_index(new_tail) == get_index(head_.load(std::memory_order_acquire))) {
@@ -155,7 +155,6 @@ bool BoundedQueue<T>::enqueue(const T& item) {
   pool_[get_index(old_tail)] = item;
 
   do {
-    old_max_head = old_tail;
   } while (!max_head_.compare_exchange_weak(old_tail, new_tail, std::memory_order_acq_rel,
                                             std::memory_order_relaxed));
   wait_strategy_->NotifyOne();
